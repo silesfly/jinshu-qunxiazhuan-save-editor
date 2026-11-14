@@ -1,0 +1,17 @@
+*.sav
+*.bak
+*.tmp-*
+*.pending-*
+HANDOFF*.md
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
+receipt.json
+failure.txt
+dist/*.exe
+dist/*.pdb
+dist/*.zip
+release/
+vendor/
+private-evidence/

@@ -1,0 +1,1929 @@
+<!doctype html>
+<html lang="ko" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="금서군협전(金書群俠傳) 1.07 V2.5 FIX 234 세이브 에디터 v1.0 — 세이브 파일(.sav) 검증·편집·재작성 도구">
+  <title>금서군협전 (金書群俠傳) 세이브 에디터 v1.0</title>
+  <link rel="icon" href="data:,">
+  <style>
+    /* ============================================================
+       DESIGN TOKENS — wuxia dark gold & jade
+       ============================================================ */
+    :root {
+      color-scheme: dark;
+      accent-color: var(--accent);
+      scrollbar-color: #3b445e #12151e;
+      scrollbar-width: thin;
+
+      --bg-base: #0c0f15;
+      --bg-surface: #141923;
+      --bg-elevated: #1b2230;
+      --bg-inset: #10151e;
+      --border: #2a3346;
+      --border-strong: #3b445e;
+      --accent: #d4af37;
+      --accent-bright: #f2cc60;
+      --jade: #2dd4bf;
+      --danger: #e25c5c;
+      --ok: #5ecf8f;
+
+      --text: #e8ecf5;
+      --text-dim: #9aa6bd;
+      --text-faint: #6f7c94;
+
+      --radius-sm: 8px;
+      --radius: 12px;
+      --radius-lg: 18px;
+
+      --shadow-1: 0 1px 0 rgba(255, 255, 255, .035) inset, 0 10px 30px rgba(0, 0, 0, .38);
+      --shadow-2: 0 24px 60px rgba(0, 0, 0, .55);
+
+      --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", "D2Coding", Consolas, "Liberation Mono", monospace;
+      --sans: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* ---------- explicit light theme ---------- */
+    html[data-theme="light"] {
+      color-scheme: light;
+      --bg-base: #f7f4ec;
+      --bg-surface: #ffffff;
+      --bg-elevated: #fbf8f0;
+      --bg-inset: #f2eee2;
+      --border: #ddd6c6;
+      --border-strong: #c8bfa9;
+      --accent: #9a6f0b;
+      --accent-bright: #6d4c00;
+      --jade: #0f766e;
+      --danger: #b3261e;
+      --ok: #1c7a4a;
+      --text: #1e2430;
+      --text-dim: #4d5566;
+      --text-faint: #6c7486;
+      scrollbar-color: #c8bfa9 #eee9dd;
+      --shadow-1: 0 1px 0 rgba(255, 255, 255, .7) inset, 0 10px 26px rgba(30, 36, 48, .10);
+      --shadow-2: 0 24px 60px rgba(30, 36, 48, .18);
+    }
+
+    /* ---------- automatic light theme (when theme not pinned to dark) ---------- */
+    @media (prefers-color-scheme: light) {
+      html:not([data-theme="dark"]) {
+        color-scheme: light;
+        --bg-base: #f7f4ec;
+        --bg-surface: #ffffff;
+        --bg-elevated: #fbf8f0;
+        --bg-inset: #f2eee2;
+        --border: #ddd6c6;
+        --border-strong: #c8bfa9;
+        --accent: #9a6f0b;
+        --accent-bright: #6d4c00;
+        --jade: #0f766e;
+        --danger: #b3261e;
+        --ok: #1c7a4a;
+        --text: #1e2430;
+        --text-dim: #4d5566;
+        --text-faint: #6c7486;
+        scrollbar-color: #c8bfa9 #eee9dd;
+        --shadow-1: 0 1px 0 rgba(255, 255, 255, .7) inset, 0 10px 26px rgba(30, 36, 48, .10);
+        --shadow-2: 0 24px 60px rgba(30, 36, 48, .18);
+      }
+    }
+
+    /* ============================================================
+       BASE
+       ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html { -webkit-text-size-adjust: 100%; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(1100px 560px at 12% -8%, rgba(212, 175, 55, .12), transparent 62%),
+        radial-gradient(900px 520px at 92% -4%, rgba(45, 212, 191, .09), transparent 60%),
+        var(--bg-base);
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, h4 { margin: 0; line-height: 1.28; font-weight: 700; letter-spacing: -.01em; }
+    p { margin: 0; }
+    ul, ol { margin: 0; padding: 0; list-style: none; }
+
+    :focus-visible {
+      outline: 2px solid var(--accent-bright);
+      outline-offset: 2px;
+    }
+
+    [hidden]:not([hidden="until-found"]) { display: none !important; }
+
+    .sr-only {
+      position: absolute !important;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -60px; left: 12px;
+      z-index: 999;
+      padding: .55rem .9rem;
+      background: var(--accent);
+      color: #16120a;
+      font-weight: 700;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      transition: top .15s ease;
+    }
+    .skip-link:focus { top: 12px; }
+
+    .mono { font-family: var(--mono); font-size: .86em; }
+    .dim { color: var(--text-dim); }
+    .faint { color: var(--text-faint); }
+
+    /* ============================================================
+       APP SHELL
+       ============================================================ */
+    .app-shell {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 22px 20px 72px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* ---------------- Header ---------------- */
+    .app-header {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 20px 22px;
+      background:
+        linear-gradient(180deg, rgba(212, 175, 55, .10), transparent 58%),
+        var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-1);
+      overflow: hidden;
+    }
+    .app-header::before {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      inset-block-start: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--jade), var(--accent));
+      opacity: .85;
+    }
+
+    .brand { display: flex; flex-direction: column; gap: 4px; }
+    .brand h1 {
+      font-size: clamp(1.15rem, 1rem + 1.1vw, 1.6rem);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: .5ch;
+    }
+    .brand h1 .hanja {
+      font-size: .74em;
+      color: var(--accent);
+      letter-spacing: .04em;
+      font-weight: 600;
+    }
+    .brand .subtitle {
+      font-size: .84rem;
+      color: var(--text-dim);
+    }
+    .brand .subtitle .ver {
+      font-family: var(--mono);
+      color: var(--jade);
+    }
+
+    .mode-notice {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+      padding: 10px 13px;
+      background: var(--bg-inset);
+      border: 1px solid var(--border);
+      border-inline-start: 3px solid var(--accent);
+      border-radius: var(--radius-sm);
+      font-size: .85rem;
+      color: var(--text-dim);
+    }
+    .mode-dot {
+      width: 9px; height: 9px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--jade);
+      box-shadow: 0 0 0 3px rgba(45, 212, 191, .18);
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(45, 212, 191, .18); }
+      50% { box-shadow: 0 0 0 6px rgba(45, 212, 191, .05); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .mode-dot { animation: none; }
+      * { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .35em;
+      padding: .14rem .55rem;
+      font-family: var(--mono);
+      font-size: .74rem;
+      font-weight: 600;
+      line-height: 1.6;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-elevated);
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+    .badge-neutral { color: var(--text-dim); }
+    .badge-ok { color: var(--ok); border-color: rgba(94, 207, 143, .55); background: rgba(94, 207, 143, .1); }
+    .badge-warn { color: var(--accent-bright); border-color: rgba(212, 175, 55, .6); background: rgba(212, 175, 55, .12); }
+    .badge-danger { color: var(--danger); border-color: rgba(226, 92, 92, .55); background: rgba(226, 92, 92, .12); }
+    .badge-jade { color: var(--jade); border-color: rgba(45, 212, 191, .5); background: rgba(45, 212, 191, .1); }
+
+    /* ---------------- Toolbar ---------------- */
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .toolbar-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      background: var(--bg-inset);
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius-sm);
+    }
+    .toolbar-group::before {
+      content: attr(data-label);
+      font-size: .7rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+    }
+
+    /* ---------------- Buttons ---------------- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .45em;
+      padding: .48rem .85rem;
+      font: inherit;
+      font-size: .875rem;
+      font-weight: 600;
+      line-height: 1.35;
+      color: var(--text);
+      background: linear-gradient(180deg, var(--bg-elevated), var(--bg-surface));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      white-space: nowrap;
+      text-decoration: none;
+      transition: border-color .15s ease, color .15s ease, background-color .15s ease, transform .06s ease;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent-bright); }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled,
+    .btn[aria-disabled="true"] {
+      cursor: not-allowed;
+      opacity: .48;
+      transform: none;
+      border-color: var(--border);
+      color: var(--text-faint);
+    }
+
+    .btn-primary {
+      color: #1a1405;
+      background: linear-gradient(180deg, #f0d075, var(--accent));
+      border-color: #b8932c;
+    }
+    .btn-primary:hover { color: #100c02; border-color: var(--accent-bright); background: linear-gradient(180deg, #f7dd93, var(--accent-bright)); }
+
+    .btn-jade {
+      color: var(--jade);
+      background: linear-gradient(180deg, rgba(45, 212, 191, .22), rgba(45, 212, 191, .07));
+      border-color: rgba(45, 212, 191, .5);
+    }
+    .btn-jade:hover { color: #e6fffb; border-color: var(--jade); }
+
+    .btn-outline {
+      background: transparent;
+      border-color: var(--border-strong);
+    }
+
+    .btn-danger {
+      color: var(--danger);
+      background: linear-gradient(180deg, rgba(226, 92, 92, .18), rgba(226, 92, 92, .06));
+      border-color: rgba(226, 92, 92, .5);
+    }
+    .btn-danger:hover { color: #ffd9d9; border-color: var(--danger); }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: transparent;
+      color: var(--text-dim);
+      padding: .3rem .5rem;
+      font-size: .8rem;
+    }
+    .btn-ghost:hover { color: var(--accent-bright); border-color: var(--border); }
+
+    .btn-sm { padding: .3rem .6rem; font-size: .78rem; }
+
+    .btn-icon {
+      padding: .48rem .7rem;
+      font-size: .82rem;
+    }
+
+    /* ---------------- Status bar ---------------- */
+    .status-bar {
+      min-height: 1.9rem;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: 8px 12px;
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--text-dim);
+      background: var(--bg-inset);
+      border: 1px solid var(--border);
+      border-inline-start: 3px solid var(--jade);
+      border-radius: var(--radius-sm);
+      overflow-wrap: anywhere;
+    }
+
+    /* ============================================================
+       TABS
+       ============================================================ */
+    .tablist {
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      white-space: nowrap;
+      scrollbar-width: thin;
+      gap: 4px;
+      padding: 6px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-1);
+      -webkit-overflow-scrolling: touch;
+    }
+
+    [role="tab"] {
+      position: relative;
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: .4em;
+      padding: .55rem .95rem;
+      font: inherit;
+      font-size: .875rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+    }
+    [role="tab"]:hover { color: var(--text); background: var(--bg-elevated); }
+    [role="tab"][aria-selected="true"] {
+      color: var(--accent-bright);
+      background: linear-gradient(180deg, rgba(212, 175, 55, .14), rgba(212, 175, 55, .04));
+      border-color: rgba(212, 175, 55, .38);
+    }
+    [role="tab"][aria-selected="true"]::after {
+      content: "";
+      position: absolute;
+      inset-inline: .55rem;
+      inset-block-end: -1px;
+      border-block-end: 3px solid var(--accent-bright);
+      border-radius: 3px 3px 0 0;
+      pointer-events: none;
+    }
+    [role="tab"] .tab-index {
+      font-family: var(--mono);
+      font-size: .72em;
+      color: var(--text-faint);
+    }
+    [role="tab"][aria-selected="true"] .tab-index { color: var(--accent); }
+
+    /* ============================================================
+       PANELS
+       ============================================================ */
+    [role="tabpanel"] {
+      padding: 0;
+      margin: 0;
+      border: 0;
+      background: transparent;
+    }
+    .panel-inner {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding: 2px 0 0;
+    }
+
+    /* ---------------- Cards ---------------- */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-1);
+      overflow: hidden;
+    }
+    .card-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px 14px;
+      padding: 13px 16px;
+      background: linear-gradient(180deg, rgba(212, 175, 55, .07), transparent);
+      border-block-end: 1px solid var(--border);
+    }
+    .card-head h2,
+    .card-head h3 {
+      display: flex;
+      align-items: center;
+      gap: .55ch;
+      font-size: .98rem;
+    }
+    .card-head h2 .hanja,
+    .card-head h3 .hanja { color: var(--accent); font-size: .9em; font-weight: 600; }
+    .card-head .hint {
+      font-size: .76rem;
+      color: var(--text-faint);
+      font-family: var(--mono);
+    }
+    .card-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .card-body.tight { padding: 12px; gap: 10px; }
+
+    .section-note {
+      font-size: .79rem;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+    .section-note code {
+      font-family: var(--mono);
+      font-size: .92em;
+      color: var(--jade);
+      background: var(--bg-inset);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: .05em .35em;
+    }
+
+    /* ---------------- Summary KPI strip ---------------- */
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 12px;
+    }
+    .kpi {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 14px 15px;
+      background:
+        linear-gradient(160deg, rgba(212, 175, 55, .09), transparent 62%),
+        var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-1);
+    }
+    .kpi-label {
+      font-size: .72rem;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      font-family: var(--mono);
+    }
+    .kpi-value {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      overflow-wrap: anywhere;
+    }
+    .kpi-value.accent { color: var(--accent-bright); }
+    .kpi-value.jade { color: var(--jade); }
+    .kpi-sub { font-size: .78rem; color: var(--text-dim); }
+
+    /* ---------------- Presets ---------------- */
+    .presets-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 10px;
+    }
+    .preset-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 3px;
+      padding: .7rem .85rem;
+      text-align: start;
+      font: inherit;
+      color: var(--text);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: border-color .15s ease, background-color .15s ease, transform .06s ease;
+    }
+    .preset-btn:hover { border-color: var(--accent); background: var(--bg-surface); }
+    .preset-btn:active { transform: translateY(1px); }
+    .preset-btn strong { font-size: .88rem; }
+    .preset-btn span { font-size: .74rem; color: var(--text-faint); line-height: 1.4; }
+
+    /* ---------------- Forms ---------------- */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px 14px;
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .field > label {
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      letter-spacing: .01em;
+    }
+    .field > label .code {
+      font-family: var(--mono);
+      font-size: .92em;
+      color: var(--text-faint);
+      font-weight: 400;
+    }
+    .field .field-hint { font-size: .72rem; color: var(--text-faint); font-family: var(--mono); }
+
+    input[type="text"],
+    input[type="search"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      min-width: 0;
+      padding: .48rem .62rem;
+      font: inherit;
+      font-size: .875rem;
+      color: var(--text);
+      background: var(--bg-inset);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+    }
+    input[type="text"]:hover,
+    input[type="search"]:hover,
+    input[type="number"]:hover,
+    select:hover { border-color: var(--border-strong); }
+
+    input[type="text"]:focus,
+    input[type="search"]:focus,
+    input[type="number"]:focus,
+    select:focus,
+    textarea:focus {
+      outline: 2px solid var(--accent-bright);
+      outline-offset: 1px;
+      border-color: var(--accent);
+      background: var(--bg-base);
+    }
+
+    input[type="search"]::-webkit-search-cancel-button { filter: invert(.7); }
+
+    input[type="number"] { font-variant-numeric: tabular-nums; }
+
+    select {
+      appearance: none;
+      background-image:
+        linear-gradient(45deg, transparent 50%, var(--text-dim) 50%),
+        linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+      background-position:
+        calc(100% - 15px) calc(50% + 1px),
+        calc(100% - 10px) calc(50% + 1px);
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+      padding-inline-end: 2rem;
+    }
+
+    input[type="checkbox"] {
+      width: 1.05rem;
+      height: 1.05rem;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      font-size: .84rem;
+      color: var(--text-dim);
+      cursor: pointer;
+    }
+
+    fieldset.form-fieldset {
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+    fieldset.form-fieldset > legend {
+      padding: 0 0 8px;
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-family: var(--mono);
+    }
+
+    .form-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-block-start: 4px;
+    }
+
+    /* ---------------- Split layout ---------------- */
+    .split-layout {
+      display: grid;
+      grid-template-columns: minmax(268px, 340px) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 940px) {
+      .split-layout { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    .filter-bar { display: flex; flex-direction: column; gap: 10px; }
+
+    .list-count {
+      font-family: var(--mono);
+      font-size: .76rem;
+      color: var(--text-faint);
+    }
+
+    .scroll-list {
+      max-height: 480px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-inset);
+      padding: 5px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .scroll-list:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
+
+    .list-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      padding: .42rem .6rem;
+      font: inherit;
+      font-size: .84rem;
+      text-align: start;
+      color: var(--text-dim);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .list-option:hover { color: var(--text); background: var(--bg-elevated); }
+    .list-option[aria-selected="true"] {
+      color: var(--accent-bright);
+      background: rgba(212, 175, 55, .12);
+      border-color: rgba(212, 175, 55, .45);
+    }
+    .list-option .opt-sub {
+      font-family: var(--mono);
+      font-size: .72rem;
+      color: var(--text-faint);
+      white-space: nowrap;
+    }
+
+    .empty-state {
+      padding: 18px 14px;
+      text-align: center;
+      font-size: .82rem;
+      color: var(--text-faint);
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius-sm);
+      background: var(--bg-inset);
+    }
+
+    /* ---------------- Party grid ---------------- */
+    .party-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+    }
+    .party-slot {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 11px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .party-slot .slot-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: .74rem;
+      font-family: var(--mono);
+      letter-spacing: .05em;
+      color: var(--text-faint);
+      text-transform: uppercase;
+    }
+
+    /* ---------------- Stat groups ---------------- */
+    .stats-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 14px;
+    }
+    .stat-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+      background: var(--bg-inset);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .stat-group > h4 {
+      font-size: .78rem;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      font-family: var(--mono);
+      color: var(--accent);
+    }
+    .stat-group .form-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+
+    /* ---------------- Meridians & acupoints ---------------- */
+    .meridians-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
+      gap: 9px;
+    }
+    .meridian-card {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      padding: 10px 11px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .meridian-card .meridian-name {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: .84rem;
+      font-weight: 600;
+    }
+    .meridian-card .meridian-name .code {
+      font-family: var(--mono);
+      font-size: .72rem;
+      color: var(--text-faint);
+      font-weight: 400;
+    }
+    .meridian-card .toggles { display: flex; flex-wrap: wrap; gap: 10px; }
+
+    .acupoints-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      max-height: 260px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 6px;
+      background: var(--bg-inset);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .acupoint-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .25em;
+      min-width: 46px;
+      padding: .2rem .45rem;
+      font-family: var(--mono);
+      font-size: .75rem;
+      color: var(--text-dim);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: color .12s ease, border-color .12s ease, background-color .12s ease;
+    }
+    .acupoint-pill:hover { color: var(--text); border-color: var(--border-strong); }
+    .acupoint-pill[aria-pressed="true"] {
+      color: #10221f;
+      background: linear-gradient(180deg, #7ff0e2, var(--jade));
+      border-color: var(--jade);
+      font-weight: 700;
+    }
+
+    /* ---------------- Talent lists ---------------- */
+    .talent-columns {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .talent-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 68px;
+      padding: 8px;
+      background: var(--bg-inset);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .talent-chip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: .34rem .5rem;
+      font-size: .82rem;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .talent-chip .chip-name { overflow-wrap: anywhere; }
+    .talent-chip .chip-actions { display: flex; gap: 4px; flex: 0 0 auto; }
+    .talent-chip.is-equipped { border-color: rgba(45, 212, 191, .55); }
+
+    /* ---------------- Inventory layout ---------------- */
+    .inv-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 1040px) {
+      .inv-layout { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    .usage-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 14px;
+      padding: 10px 13px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-inline-start: 3px solid var(--jade);
+      border-radius: var(--radius-sm);
+      font-size: .82rem;
+      color: var(--text-dim);
+    }
+    .usage-row .sync-note {
+      font-family: var(--mono);
+      font-size: .77rem;
+      color: var(--text-faint);
+    }
+
+    .add-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      align-items: end;
+    }
+
+    /* ============================================================
+       TABLES
+       ============================================================ */
+    .table-wrapper {
+      overflow-x: auto;
+      overscroll-behavior: contain;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-inset);
+    }
+    .table-wrapper:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .84rem;
+      min-width: 460px;
+    }
+    caption {
+      padding: 8px 12px;
+      text-align: start;
+      font-size: .78rem;
+      color: var(--text-faint);
+      font-family: var(--mono);
+      caption-side: top;
+    }
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 9px 11px;
+      text-align: start;
+      font-size: .74rem;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--bg-elevated);
+      border-block-end: 1px solid var(--border-strong);
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 8px 11px;
+      border-block-end: 1px solid var(--border);
+      color: var(--text-dim);
+      vertical-align: middle;
+    }
+    tbody td .mono { color: var(--text); }
+    tbody tr:last-child td { border-block-end: 0; }
+    tbody tr:hover td { background: rgba(212, 175, 55, .05); color: var(--text); }
+    tbody td.num { font-variant-numeric: tabular-nums; text-align: end; font-family: var(--mono); }
+    tbody td.actions { white-space: nowrap; text-align: end; }
+
+    .table-empty td {
+      text-align: center;
+      color: var(--text-faint);
+      padding: 20px 12px;
+      font-size: .82rem;
+    }
+
+    /* ============================================================
+       ATLAS
+       ============================================================ */
+    .atlas-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .atlas-card {
+      padding: 13px 14px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .atlas-card h3 {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: .88rem;
+    }
+    .atlas-card h3 .code {
+      font-family: var(--mono);
+      font-size: .72rem;
+      color: var(--jade);
+      font-weight: 600;
+    }
+    .atlas-card dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 4px 10px;
+      font-size: .8rem;
+    }
+    .atlas-card dt { color: var(--text-faint); font-family: var(--mono); font-size: .74rem; }
+    .atlas-card dd { margin: 0; color: var(--text-dim); overflow-wrap: anywhere; }
+
+    /* ============================================================
+       DIALOG — 변경 내역
+       ============================================================ */
+    dialog#changes-dialog {
+      width: min(920px, calc(100vw - 28px));
+      max-height: calc(100dvh - 60px);
+      padding: 0;
+      color: var(--text);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-2);
+      overflow: hidden;
+    }
+    dialog#changes-dialog:not([open]) { display: none; }
+
+    dialog:modal { overscroll-behavior: contain; }
+
+    dialog::backdrop {
+      background: rgba(6, 9, 15, 0.75);
+      backdrop-filter: blur(3px);
+      overscroll-behavior: contain;
+    }
+
+    .dialog-shell {
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100dvh - 60px);
+    }
+    .dialog-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px 16px;
+      padding: 16px 18px;
+      background: linear-gradient(180deg, rgba(212, 175, 55, .12), transparent);
+      border-block-end: 1px solid var(--border);
+    }
+    .dialog-head h2 { font-size: 1.02rem; }
+    .dialog-head .dialog-sub {
+      margin-block-start: 4px;
+      font-size: .8rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      overflow-wrap: anywhere;
+    }
+    .dialog-body {
+      padding: 16px 18px;
+      overflow: auto;
+      overscroll-behavior: contain;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .dialog-foot {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 13px 18px;
+      background: var(--bg-inset);
+      border-block-start: 1px solid var(--border);
+    }
+    .dialog-foot .foot-group { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    /* ============================================================
+       FOOTER
+       ============================================================ */
+    .app-footer {
+      margin-block-start: 18px;
+      padding: 14px 4px 0;
+      border-block-start: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 16px;
+      justify-content: space-between;
+      font-size: .76rem;
+      color: var(--text-faint);
+      font-family: var(--mono);
+    }
+
+    /* ============================================================
+       MISC
+       ============================================================ */
+    .inline-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .inline-group > .btn { flex: 0 0 auto; }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .3em;
+      padding: .1rem .5rem;
+      font-family: var(--mono);
+      font-size: .73rem;
+      color: var(--text-dim);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+    }
+
+    .char-detail-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      background:
+        linear-gradient(120deg, rgba(212, 175, 55, .12), transparent 70%),
+        var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .char-detail-header .char-identity { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .char-detail-header .char-name { font-size: 1rem; font-weight: 700; }
+    .char-detail-header .char-meta { font-family: var(--mono); font-size: .75rem; color: var(--text-faint); overflow-wrap: anywhere; }
+
+    .two-col-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+    }
+
+    @media (max-width: 640px) {
+      .app-shell { padding: 14px 12px 56px; }
+      .app-header { padding: 16px 14px; }
+      .card-body { padding: 13px; }
+      .toolbar { gap: 6px; }
+      .btn { font-size: .82rem; padding: .45rem .7rem; }
+      .summary-cards { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    @media (prefers-contrast: more) {
+      :root { --border: #566074; --border-strong: #7b869e; --text-dim: #c2cade; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-tablist">본문 탭으로 건너뛰기</a>
+
+  <div class="app-shell">
+
+    <!-- ============================================================
+         HEADER
+         ============================================================ -->
+    <header class="app-header">
+      <div class="brand">
+        <h1>
+          <span>금서군협전 세이브 에디터</span>
+          <span class="hanja" lang="zh-Hant">金書群俠傳</span>
+        </h1>
+        <p class="subtitle">
+          에디터 v1.0 · 대상 게임 <span class="ver">1.07 V2.5 FIX 234</span> · <code class="mono">.sav</code> 구조 검증 · 안전 편집 · 재작성
+        </p>
+      </div>
+
+      <div id="modeNotice" class="mode-notice" role="note" aria-label="런타임 모드 및 파일 상태">
+        <span class="mode-dot" aria-hidden="true"></span>
+        <span id="mode-notice-text">런타임 모드를 확인하는 중입니다…</span>
+        <span id="loaded-file-badge" class="badge badge-neutral">파일 없음</span>
+        <span id="validation-badge" class="badge badge-neutral">검증 대기</span>
+      </div>
+
+      <div class="toolbar" role="group" aria-label="세이브 파일 작업">
+        <input type="file" id="file-input" accept=".sav" hidden>
+        <button type="button" id="btn-open-file" class="btn btn-primary">세이브 열기 (.sav)</button>
+        <button type="button" id="btn-load-demo" class="btn">데모 세이브</button>
+        <button type="button" id="btn-download-sav" class="btn btn-jade">수정본 .sav 다운로드</button>
+
+        <div id="native-toolbar" class="toolbar-group" data-label="PC 모드" role="group" aria-label="PC 네이티브 세이브 도구" hidden>
+          <button type="button" id="btn-native-open" class="btn">PC 세이브 열기</button>
+          <button type="button" id="btn-native-save" class="btn">자동 백업 후 저장</button>
+          <button type="button" id="btn-native-save-copy" class="btn">사본으로 저장</button>
+        </div>
+
+        <div id="server-toolbar" class="toolbar-group" data-label="서버 모드" role="group" aria-label="서버 세이브 도구" hidden>
+          <label for="server-slot-select" class="sr-only">서버 세이브 슬롯</label>
+          <select id="server-slot-select" aria-label="서버 세이브 슬롯"></select>
+          <button type="button" id="btn-server-open" class="btn">슬롯 열기</button>
+          <button type="button" id="btn-server-save" class="btn">서버 백업 저장</button>
+        </div>
+
+        <button type="button" id="btn-review-changes" class="btn btn-outline">
+          변경 내역 <span id="changes-badge" class="badge badge-warn" aria-hidden="true">0</span>
+        </button>
+        <button type="button" id="btn-theme-toggle" class="btn btn-icon" aria-pressed="false">테마 전환</button>
+      </div>
+
+      <div id="status-bar" class="status-bar" role="status" aria-live="polite">준비되었습니다 — 세이브 파일을 열거나 데모 세이브를 불러오세요.</div>
+    </header>
+
+    <!-- ============================================================
+         TABS
+         ============================================================ -->
+    <div id="main-tablist" class="tablist" role="tablist" aria-label="금서군협전 세이브 편집기 섹션">
+      <button type="button" role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" tabindex="0">
+        <span class="tab-index" aria-hidden="true">1</span> 기본·화폐·동료
+      </button>
+      <button type="button" role="tab" id="tab-characters" aria-controls="panel-characters" aria-selected="false" tabindex="-1">
+        <span class="tab-index" aria-hidden="true">2</span> 인물·능력치·장비
+      </button>
+      <button type="button" role="tab" id="tab-martial" aria-controls="panel-martial" aria-selected="false" tabindex="-1">
+        <span class="tab-index" aria-hidden="true">3</span> 무공·비기·천부·경맥
+      </button>
+      <button type="button" role="tab" id="tab-inventory" aria-controls="panel-inventory" aria-selected="false" tabindex="-1">
+        <span class="tab-index" aria-hidden="true">4</span> 소지품·도감 추가
+      </button>
+      <button type="button" role="tab" id="tab-atlas" aria-controls="panel-atlas" aria-selected="false" tabindex="-1">
+        <span class="tab-index" aria-hidden="true">5</span> 코드·공식·생존 도감
+      </button>
+    </div>
+
+    <main>
+
+      <!-- ============================================================
+           PANEL 1 — 기본·화폐·동료
+           ============================================================ -->
+      <section role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" tabindex="0">
+        <div class="panel-inner">
+
+          <div id="summary-cards" class="summary-cards" aria-label="세이브 요약 지표">
+            <article class="kpi">
+              <p class="kpi-label">주인공 · 레벨</p>
+              <p class="kpi-value accent" id="kpi-hero">—</p>
+              <p class="kpi-sub" id="kpi-hero-sub">세이브를 열면 표시됩니다.</p>
+            </article>
+            <article class="kpi">
+              <p class="kpi-label">회차 · 난이도 · 천서</p>
+              <p class="kpi-value jade" id="kpi-run">—</p>
+              <p class="kpi-sub" id="kpi-run-sub">천서 0 / 14</p>
+            </article>
+            <article class="kpi">
+              <p class="kpi-label">은량 · 비급잔장 · 수련 파편</p>
+              <p class="kpi-value" id="kpi-currency">—</p>
+              <p class="kpi-sub" id="kpi-currency-sub">CC.Gold · CC.MJCZ · CC.Sp</p>
+            </article>
+            <article class="kpi">
+              <p class="kpi-label">SaveIdentity · RConfig</p>
+              <p class="kpi-value" id="kpi-identity">—</p>
+              <p class="kpi-sub" id="kpi-identity-sub">구조 검증 대기</p>
+            </article>
+          </div>
+
+          <section class="card" aria-labelledby="presets-title">
+            <div class="card-head">
+              <h2 id="presets-title">빠른 프리셋</h2>
+              <span class="hint">JinshuEditorCore.PRESETS</span>
+            </div>
+            <div class="card-body tight">
+              <p class="section-note">
+                프리셋은 여러 필드를 한 번에 안전 범위로 설정합니다. 적용 전 <strong>변경 내역</strong>에서 결과를 확인할 수 있으며,
+                언제든 <em>변경 모두 초기화</em>로 되돌릴 수 있습니다.
+              </p>
+              <div id="presets-grid" class="presets-grid" role="group" aria-label="빠른 프리셋"></div>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="currency-title">
+            <div class="card-head">
+              <h2 id="currency-title">재화 · 진행 상태 <span class="hanja" lang="zh-Hant">銀兩·進度</span></h2>
+              <span class="hint">Currency &amp; World State</span>
+            </div>
+            <div class="card-body">
+              <p class="section-note">
+                모든 값은 게임 내 안전 범위로 클램프됩니다. 비급잔장은 아이템 <code>550</code>, 수련 파편은 <code>Base[40]</code>과 자동 동기화됩니다.
+              </p>
+              <form id="currency-form" class="form-grid" autocomplete="off" novalidate>
+                <div class="field">
+                  <label for="cur-gold">은량 <span class="code">CC.Gold</span></label>
+                  <input type="number" id="cur-gold" name="cur-gold" min="0" max="999999999" step="1" inputmode="numeric" placeholder="0">
+                  <span class="field-hint">0 … 999,999,999</span>
+                </div>
+                <div class="field">
+                  <label for="cur-mjcz">비급잔장 <span class="code">CC.MJCZ</span></label>
+                  <input type="number" id="cur-mjcz" name="cur-mjcz" min="0" max="30000" step="1" inputmode="numeric" placeholder="0">
+                  <span class="field-hint">0 … 30,000 · 아이템 550 동기화</span>
+                </div>
+                <div class="field">
+                  <label for="cur-sp">수련 파편 <span class="code">CC.Sp</span></label>
+                  <input type="number" id="cur-sp" name="cur-sp" min="0" max="32767" step="1" inputmode="numeric" placeholder="0">
+                  <span class="field-hint">0 … 32,767 · Base[40] 동기화</span>
+                </div>
+                <div class="field">
+                  <label for="cur-stamina">정력 <span class="code">CC.JL</span></label>
+                  <input type="number" id="cur-stamina" name="cur-stamina" min="0" max="9999" step="1" inputmode="numeric" placeholder="0">
+                  <span class="field-hint">0 … 9,999</span>
+                </div>
+                <div class="field">
+                  <label for="cur-playthrough">회차</label>
+                  <input type="number" id="cur-playthrough" name="cur-playthrough" min="1" max="99" step="1" inputmode="numeric" placeholder="1">
+                  <span class="field-hint">1 … 99</span>
+                </div>
+                <div class="field">
+                  <label for="cur-difficulty">난이도</label>
+                  <input type="number" id="cur-difficulty" name="cur-difficulty" min="1" max="10" step="1" inputmode="numeric" placeholder="1">
+                  <span class="field-hint">1 … 10</span>
+                </div>
+                <div class="field">
+                  <label for="cur-books">획득 천서 수</label>
+                  <input type="number" id="cur-books" name="cur-books" min="0" max="14" step="1" inputmode="numeric" placeholder="0">
+                  <span class="field-hint">0 … 14</span>
+                </div>
+                <div class="field">
+                  <label for="cur-year">년</label>
+                  <input type="number" id="cur-year" name="cur-year" min="1" max="999" step="1" inputmode="numeric" placeholder="1">
+                  <span class="field-hint">1 … 999</span>
+                </div>
+                <div class="field">
+                  <label for="cur-month">월</label>
+                  <input type="number" id="cur-month" name="cur-month" min="1" max="12" step="1" inputmode="numeric" placeholder="1">
+                  <span class="field-hint">1 … 12</span>
+                </div>
+                <div class="field">
+                  <label for="cur-day">일</label>
+                  <input type="number" id="cur-day" name="cur-day" min="1" max="31" step="1" inputmode="numeric" placeholder="1">
+                  <span class="field-hint">1 … 31</span>
+                </div>
+                <div class="field">
+                  <label for="cur-shichen">시진 <span class="code">時辰</span></label>
+                  <select id="cur-shichen" name="cur-shichen">
+                    <option value="0">0 · 자시 (子時)</option>
+                    <option value="1">1 · 축시 (丑時)</option>
+                    <option value="2">2 · 인시 (寅時)</option>
+                    <option value="3">3 · 묘시 (卯時)</option>
+                    <option value="4">4 · 진시 (辰時)</option>
+                    <option value="5">5 · 사시 (巳時)</option>
+                    <option value="6">6 · 오시 (午時)</option>
+                    <option value="7">7 · 미시 (未時)</option>
+                    <option value="8">8 · 신시 (申時)</option>
+                    <option value="9">9 · 유시 (酉時)</option>
+                    <option value="10">10 · 술시 (戌時)</option>
+                    <option value="11">11 · 해시 (亥時)</option>
+                  </select>
+                  <span class="field-hint">0 자시 … 11 해시</span>
+                </div>
+              </form>
+              <div class="form-actions">
+                <button type="button" id="btn-apply-currency" class="btn btn-primary">재화·진행 상태 적용</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="party-title">
+            <div class="card-head">
+              <h2 id="party-title">출전 동료 <span class="hanja" lang="zh-Hant">隊伍</span></h2>
+              <span class="hint">15 slots · 队伍1 … 队伍15</span>
+            </div>
+            <div class="card-body">
+              <p class="section-note">
+                15개 편성 슬롯입니다. 각 슬롯에서 인물을 선택하거나 <strong>인물 편집으로 이동</strong>해 세부 능력치를 조정하세요.
+                빈 슬롯은 <em>없음</em>으로 두면 됩니다.
+              </p>
+              <div id="party-grid" class="party-grid" role="group" aria-label="출전 동료 15슬롯"></div>
+            </div>
+          </section>
+
+        </div>
+      </section>
+
+      <!-- ============================================================
+           PANEL 2 — 인물·능력치·장비
+           ============================================================ -->
+      <section role="tabpanel" id="panel-characters" aria-labelledby="tab-characters" tabindex="0" hidden="until-found">
+        <div class="panel-inner">
+
+          <div class="split-layout">
+
+            <!-- Left: list & filters -->
+            <section class="card" aria-labelledby="char-list-title">
+              <div class="card-head">
+                <h2 id="char-list-title">인물 목록</h2>
+                <span class="list-count" id="char-list-count">0명</span>
+              </div>
+              <div class="card-body tight">
+                <div class="filter-bar">
+                  <div class="field">
+                    <label for="char-search-input">인물 검색 (/)</label>
+                    <input type="search" id="char-search-input" name="char-search-input" placeholder="이름·한자·ID 검색 (단축키 /)" aria-describedby="char-search-hint" autocomplete="off">
+                    <span class="field-hint" id="char-search-hint">이름 · 한자 · 인물 ID</span>
+                  </div>
+                  <div class="field">
+                    <label for="char-sect-filter">문파 필터</label>
+                    <select id="char-sect-filter" name="char-sect-filter"></select>
+                  </div>
+                  <div class="check-row">
+                    <input type="checkbox" id="char-party-only" name="char-party-only">
+                    <label for="char-party-only">출전 동료만 보기</label>
+                  </div>
+                </div>
+
+                <div id="char-list" class="scroll-list" role="listbox" aria-label="인물 목록" tabindex="0">
+                  <p class="empty-state">세이브를 열면 인물 목록이 표시됩니다.</p>
+                </div>
+              </div>
+            </section>
+
+            <!-- Right: detail -->
+            <div class="card">
+              <div class="card-head">
+                <h2>인물 상세</h2>
+                <span class="hint">Person · Stats · Equipment</span>
+              </div>
+              <div class="card-body">
+
+                <div id="char-detail-header" class="char-detail-header">
+                  <div class="char-identity">
+                    <p class="char-name">선택된 인물 없음</p>
+                    <p class="char-meta">목록에서 인물을 선택하세요.</p>
+                  </div>
+                  <button type="button" id="btn-jump-martial" class="btn btn-sm btn-outline">무공·천부·경맥 편집으로 이동</button>
+                </div>
+
+                <form id="char-name-form" class="two-col-fields" autocomplete="off" novalidate>
+                  <div class="field">
+                    <label for="char-name-input">이름</label>
+                    <input type="text" id="char-name-input" name="char-name-input" placeholder="예: 곽정" maxlength="24">
+                  </div>
+                  <div class="field">
+                    <label for="char-nick-input">별호</label>
+                    <input type="text" id="char-nick-input" name="char-nick-input" placeholder="예: 북협" maxlength="32">
+                  </div>
+                </form>
+                <div class="form-actions">
+                  <button type="button" id="btn-apply-char-name" class="btn btn-primary btn-sm">이름·별호 적용</button>
+                </div>
+
+                <fieldset class="form-fieldset">
+                  <legend>장비</legend>
+                  <div class="form-grid">
+                    <div class="field">
+                      <label for="eq-weapon">무기</label>
+                      <select id="eq-weapon" name="eq-weapon"></select>
+                    </div>
+                    <div class="field">
+                      <label for="eq-armor">방어구</label>
+                      <select id="eq-armor" name="eq-armor"></select>
+                    </div>
+                    <div class="field">
+                      <label for="eq-mount">탈것</label>
+                      <select id="eq-mount" name="eq-mount"></select>
+                    </div>
+                    <div class="field">
+                      <label for="eq-practice-item">수련 아이템</label>
+                      <select id="eq-practice-item" name="eq-practice-item"></select>
+                    </div>
+                  </div>
+                  <div class="form-actions">
+                    <button type="button" id="btn-apply-equip" class="btn btn-sm">장비 적용</button>
+                  </div>
+                </fieldset>
+
+                <fieldset class="form-fieldset">
+                  <legend>능력치</legend>
+                  <div id="char-stats-container" class="stats-container">
+                    <p class="empty-state">인물을 선택하면 능력치 편집 그룹이 표시됩니다.</p>
+                  </div>
+                  <div class="form-actions">
+                    <button type="button" id="btn-apply-char-stats" class="btn btn-primary btn-sm">능력치 일괄 적용</button>
+                    <button type="button" id="btn-char-max-combat" class="btn btn-sm">전투 능력치 최대화</button>
+                    <button type="button" id="btn-char-recover" class="btn btn-jade btn-sm">체력·내력 완전 회복</button>
+                  </div>
+                </fieldset>
+
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           PANEL 3 — 무공·비기·천부·경맥
+           ============================================================ -->
+      <section role="tabpanel" id="panel-martial" aria-labelledby="tab-martial" tabindex="0" hidden="until-found">
+        <div class="panel-inner">
+
+          <section class="card" aria-labelledby="martial-target-title">
+            <div class="card-head">
+              <h2 id="martial-target-title">대상 인물 선택</h2>
+              <span class="hint">Person 128 … 186 · 874 … 892</span>
+            </div>
+            <div class="card-body tight">
+              <div class="form-grid">
+                <div class="field">
+                  <label for="martial-char-select">대상 인물</label>
+                  <select id="martial-char-select" name="martial-char-select"></select>
+                </div>
+              </div>
+              <p class="section-note" id="martial-char-summary">세이브를 열고 인물을 선택하면 요약이 표시됩니다.</p>
+            </div>
+          </section>
+
+          <!-- A. 무공 15슬롯 -->
+          <section class="card" aria-labelledby="kungfu-slots-title">
+            <div class="card-head">
+              <h2 id="kungfu-slots-title">무공 15슬롯 <span class="hanja" lang="zh-Hant">武功</span></h2>
+              <span class="hint">Person 128 … 186</span>
+            </div>
+            <div class="card-body tight">
+              <div class="inline-group">
+                <button type="button" id="btn-martial-max-kf-levels" class="btn btn-sm btn-primary">보유 무공 전부 Lv.999</button>
+              </div>
+              <div class="table-wrapper" tabindex="0" role="region" aria-label="보유 무공 15슬롯 표">
+                <table aria-label="보유 무공 15슬롯">
+                  <caption>슬롯 1 … 15 · 각 슬롯의 무공 코드와 레벨을 편집합니다.</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">슬롯</th>
+                      <th scope="col">무공 코드</th>
+                      <th scope="col">무공명</th>
+                      <th scope="col">레벨</th>
+                      <th scope="col">숙련</th>
+                      <th scope="col">조작</th>
+                    </tr>
+                  </thead>
+                  <tbody id="kungfu-slots-tbody">
+                    <tr class="table-empty"><td colspan="6">인물을 선택하면 무공 슬롯이 표시됩니다.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- B. 비기 10슬롯 -->
+          <section class="card" aria-labelledby="miji-slots-title">
+            <div class="card-head">
+              <h2 id="miji-slots-title">비기 10슬롯 <span class="hanja" lang="zh-Hant">祕笈</span></h2>
+              <span class="hint">Person 874 … 892</span>
+            </div>
+            <div class="card-body tight">
+              <div class="table-wrapper" tabindex="0" role="region" aria-label="보유 비기 10슬롯 표">
+                <table aria-label="보유 비기 10슬롯">
+                  <caption>슬롯 1 … 10 · 비기 슬롯의 코드와 레벨을 편집합니다.</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">슬롯</th>
+                      <th scope="col">비기 코드</th>
+                      <th scope="col">비기명</th>
+                      <th scope="col">레벨</th>
+                      <th scope="col">조작</th>
+                    </tr>
+                  </thead>
+                  <tbody id="miji-slots-tbody">
+                    <tr class="table-empty"><td colspan="5">인물을 선택하면 비기 슬롯이 표시됩니다.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- C. 천부 -->
+          <section class="card" aria-labelledby="talent-title">
+            <div class="card-head">
+              <h2 id="talent-title">천부 <span class="hanja" lang="zh-Hant">天賦</span></h2>
+              <span class="hint">tjm PTF / SPTF · 100000 + id</span>
+            </div>
+            <div class="card-body">
+              <p class="section-note">
+                <code>PTF</code>는 인물 고유 천부, <code>SPTF</code>는 장착·미장착 특수 천부입니다.
+                도감 ID는 <code>100000 + id</code> 인코딩으로 저장됩니다.
+              </p>
+
+              <div class="talent-columns">
+                <div>
+                  <h3 class="section-note" style="margin-block-end:8px;font-weight:700;color:var(--accent);">고유 천부 (PTF)</h3>
+                  <div id="ptf-list" class="talent-list" aria-label="보유 고유 천부 목록">
+                    <p class="empty-state">고유 천부가 없습니다.</p>
+                  </div>
+                </div>
+                <div>
+                  <h3 class="section-note" style="margin-block-end:8px;font-weight:700;color:var(--jade);">특수 천부 (SPTF)</h3>
+                  <div id="sptf-list" class="talent-list" aria-label="보유 특수 천부 목록">
+                    <p class="empty-state">특수 천부가 없습니다.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div class="field">
+                  <label for="talent-search-input">천부 도감 검색</label>
+                  <input type="search" id="talent-search-input" name="talent-search-input" placeholder="창룡재현, 과목불망, 일월 정예, ID..." autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="talent-target-list">추가 대상</label>
+                  <select id="talent-target-list" name="talent-target-list">
+                    <option value="ptf">고유 천부 (PTF)</option>
+                    <option value="sptf">특수 천부 장착 (SPTF)</option>
+                    <option value="sptf-unequipped">특수 천부 보관 (SPTF 미장착)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="table-wrapper" tabindex="0" role="region" aria-label="천부 도감 표">
+                <table aria-label="천부 도감">
+                  <caption>검색 결과에서 원하는 천부를 추가 대상 목록으로 넣습니다.</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">ID</th>
+                      <th scope="col">천부명</th>
+                      <th scope="col">분류</th>
+                      <th scope="col">설명</th>
+                      <th scope="col">추가</th>
+                    </tr>
+                  </thead>
+                  <tbody id="talent-catalog-tbody">
+                    <tr class="table-empty"><td colspan="5">검색어를 입력하면 천부 도감이 표시됩니다.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- D. 십사경맥 & 기혈 -->
+          <section class="card" aria-labelledby="meridian-title">
+            <div class="card-head">
+              <h2 id="meridian-title">십사경맥 · 기혈 <span class="hanja" lang="zh-Hant">十四經脈·氣血</span></h2>
+              <span class="hint">14 순통/역통 · 164 혈도</span>
+            </div>
+            <div class="card-body">
+              <p class="section-note">
+                십사경맥은 순통(順通)·역통(逆通) 상태를 각각 지정할 수 있고, 기혈은 <code>1 … 164</code> 혈도를 개별 개통합니다.
+              </p>
+              <div class="form-actions">
+                <button type="button" id="btn-meridian-open-all" class="btn btn-primary btn-sm">십사경맥 순·역 + 164혈도 전체 개통</button>
+                <button type="button" id="btn-meridian-reset-all" class="btn btn-danger btn-sm">경맥·혈도 초기화</button>
+              </div>
+
+              <div id="meridians-grid" class="meridians-grid" role="group" aria-label="십사경맥 순통 역통 설정"></div>
+
+              <p class="section-note" id="acupoints-summary">개통된 혈도: 0 / 164</p>
+              <div id="acupoints-grid" class="acupoints-grid" role="group" aria-label="164 혈도 개통 토글"></div>
+            </div>
+          </section>
+
+        </div>
+      </section>
+
+      <!-- ============================================================
+           PANEL 4 — 소지품·도감 추가
+           ============================================================ -->
+      <section role="tabpanel" id="panel-inventory" aria-labelledby="tab-inventory" tabindex="0" hidden="until-found">
+        <div class="panel-inner">
+
+          <div class="usage-row">
+            <span>소지품 슬롯 사용량</span>
+            <span id="inv-usage-badge" class="badge badge-jade">0 / 900칸</span>
+            <span class="sync-note">은량 174 · 비급잔장 550 자동 동기화</span>
+          </div>
+
+          <div class="inv-layout">
+
+            <!-- Left: owned items -->
+            <section class="card" aria-labelledby="inv-owned-title">
+              <div class="card-head">
+                <h2 id="inv-owned-title">보유 소지품 <span class="hanja" lang="zh-Hant">物品</span></h2>
+                <span class="hint">Owned Items</span>
+              </div>
+              <div class="card-body tight">
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="inv-search-input">보유 아이템 검색 (/)</label>
+                    <input type="search" id="inv-search-input" name="inv-search-input" placeholder="보유 아이템 이름·ID 검색" autocomplete="off">
+                  </div>
+                  <div class="field">
+                    <label for="inv-type-filter">분류</label>
+                    <select id="inv-type-filter" name="inv-type-filter"></select>
+                  </div>
+                </div>
+
+                <div class="table-wrapper" tabindex="0" role="region" aria-label="보유 소지품 표">
+                  <table aria-label="보유 소지품">
+                    <caption>슬롯별 아이템과 수량을 편집합니다.</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">슬롯</th>
+                        <th scope="col">아이템 ID</th>
+                        <th scope="col">아이템명</th>
+                        <th scope="col">분류</th>
+                        <th scope="col">수량</th>
+                        <th scope="col">조작</th>
+                      </tr>
+                    </thead>
+                    <tbody id="inv-owned-tbody">
+                      <tr class="table-empty"><td colspan="6">세이브를 열면 보유 소지품이 표시됩니다.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <!-- Right: catalog add -->
+            <section class="card" aria-labelledby="cat-items-title">
+              <div class="card-head">
+                <h2 id="cat-items-title">아이템 도감에서 추가</h2>
+                <span class="hint">675종 + RConfig 확장</span>
+              </div>
+              <div class="card-body tight">
+                <p class="section-note">
+                  기본 도감 <code>675</code>종에 <code>RConfig</code> 확장 항목이 감지되면 함께 표시됩니다.
+                </p>
+
+                <div class="add-bar">
+                  <div class="field">
+                    <label for="cat-item-search">도감 검색</label>
+                    <input type="search" id="cat-item-search" name="cat-item-search" placeholder="소환단, 비급잔장, 무기·비급 검색" autocomplete="off">
+                  </div>
+                  <div class="field">
+                    <label for="cat-item-type">분류</label>
+                    <select id="cat-item-type" name="cat-item-type"></select>
+                  </div>
+                  <div class="field">
+                    <label for="cat-item-count">추가 수량</label>
+                    <input type="number" id="cat-item-count" name="cat-item-count" min="1" max="30000" step="1" value="10" inputmode="numeric">
+                  </div>
+                </div>
+
+                <div class="table-wrapper" tabindex="0" role="region" aria-label="아이템 도감 표">
+                  <table aria-label="아이템 도감">
+                    <caption>항목을 추가하면 지정한 수량만큼 소지품에 반영됩니다.</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">ID</th>
+                        <th scope="col">아이템명</th>
+                        <th scope="col">분류</th>
+                        <th scope="col">최대</th>
+                        <th scope="col">추가</th>
+                      </tr>
+                    </thead>
+                    <tbody id="cat-items-tbody">
+                      <tr class="table-empty"><td colspan="5">검색어를 입력하면 아이템 도감이 표시됩니다.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           PANEL 5 — 코드·공식·생존 도감
+           ============================================================ -->
+      <section role="tabpanel" id="panel-atlas" aria-labelledby="tab-atlas" tabindex="0" hidden="until-found">
+        <div class="panel-inner">
+
+          <section class="card" aria-labelledby="atlas-search-title">
+            <div class="card-head">
+              <h2 id="atlas-search-title">도감·공식 검색</h2>
+              <span class="hint">catalog.codeAtlas</span>
+            </div>
+            <div class="card-body tight">
+              <div class="form-grid">
+                <div class="field">
+                  <label for="atlas-search-input">도감·공식 검색 (/)</label>
+                  <input type="search" id="atlas-search-input" name="atlas-search-input" placeholder="코드(kf-025), 공식, 생존 체크리스트 검색" autocomplete="off">
+                </div>
+              </div>
+              <p class="section-note">
+                바이너리 불변식·공식, 생존 체크리스트, 레코드 정의를 한 곳에서 확인합니다.
+                무공 / 아이템 / 천부 / 인물 엔티티 코드 검색도 이 입력을 공유합니다.
+              </p>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="atlas-technical-title">
+            <div class="card-head">
+              <h2 id="atlas-technical-title">바이너리 불변식 · 공식</h2>
+              <span class="hint">technical</span>
+            </div>
+            <div class="card-body tight">
+              <div id="atlas-technical-cards" class="atlas-cards" aria-label="바이너리 불변식 및 공식 카드">
+                <p class="empty-state">카탈로그를 불러오면 기술 정보 카드가 표시됩니다.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="atlas-survival-title">
+            <div class="card-head">
+              <h2 id="atlas-survival-title">생존 체크리스트</h2>
+              <span class="hint">survivalChecklist</span>
+            </div>
+            <div class="card-body tight">
+              <div class="table-wrapper" tabindex="0" role="region" aria-label="생존 체크리스트 표">
+                <table aria-label="생존 체크리스트">
+                  <caption>세이브가 손상되지 않도록 지켜야 할 항목입니다.</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">번호</th>
+                      <th scope="col">항목</th>
+                      <th scope="col">설명</th>
+                      <th scope="col">관련 필드</th>
+                    </tr>
+                  </thead>
+                  <tbody id="atlas-survival-tbody">
+                    <tr class="table-empty"><td colspan="4">카탈로그를 불러오면 체크리스트가 표시됩니다.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="atlas-records-title">
+            <div class="card-head">
+              <h2 id="atlas-records-title">레코드 · 엔티티 코드</h2>
+              <span class="hint">records · kungfu / items / talents / characters</span>
+            </div>
+            <div class="card-body tight">
+              <div class="table-wrapper" tabindex="0" role="region" aria-label="레코드 및 엔티티 코드 표">
+                <table aria-label="레코드 및 엔티티 코드">
+                  <caption>검색어로 코드·이름·설명을 필터링합니다.</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">코드</th>
+                      <th scope="col">구분</th>
+                      <th scope="col">이름</th>
+                      <th scope="col">설명</th>
+                    </tr>
+                  </thead>
+                  <tbody id="atlas-records-tbody">
+                    <tr class="table-empty"><td colspan="4">카탈로그를 불러오면 레코드가 표시됩니다.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="app-footer">
+      <span>금서군협전 세이브 에디터 v1.0 · 대상 1.07 V2.5 FIX 234</span>
+      <span>모든 편집은 메모리에서만 이루어지며, 저장 시 새 파일로 기록됩니다.</span>
+    </footer>
+  </div>
+
+  <!-- ============================================================
+       DIALOG — 변경 내역
+       ============================================================ -->
+  <dialog id="changes-dialog" aria-labelledby="changes-dialog-title">
+    <div class="dialog-shell">
+      <div class="dialog-head">
+        <div>
+          <h2 id="changes-dialog-title">변경 내역</h2>
+          <p class="dialog-sub" id="changes-dialog-summary">아직 적용된 변경이 없습니다.</p>
+        </div>
+      </div>
+
+      <div class="dialog-body">
+        <div class="table-wrapper" tabindex="0" role="region" aria-label="변경 내역 표">
+          <table aria-label="변경 내역">
+            <caption>각 항목은 세이브 파일에 기록될 최종 값입니다.</caption>
+            <thead>
+              <tr>
+                <th scope="col">번호</th>
+                <th scope="col">대상</th>
+                <th scope="col">필드</th>
+                <th scope="col">이전 값</th>
+                <th scope="col">이후 값</th>
+                <th scope="col">되돌리기</th>
+              </tr>
+            </thead>
+            <tbody id="changes-tbody">
+              <tr class="table-empty"><td colspan="6">변경 내역이 없습니다.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="dialog-foot">
+        <div class="foot-group">
+          <button type="button" id="btn-reset-changes" class="btn btn-danger btn-sm">변경 모두 초기화</button>
+        </div>
+        <div class="foot-group">
+          <button type="button" id="btn-close-changes-dialog" class="btn btn-sm">닫기</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- BUNDLE_SCRIPTS_START -->
+  <script src="./catalog-data.js"></script>
+  <script src="./sav-codec.js"></script>
+  <script src="./editor-core.js"></script>
+  <script src="./editor-ui.js"></script>
+  <!-- BUNDLE_SCRIPTS_END -->
+</body>
+</html>
