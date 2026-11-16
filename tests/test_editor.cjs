@@ -381,11 +381,126 @@ test('dist html bundle offline', () => {
   assert.ok(fs.existsSync(file), 'dist bundle exists');
   const html = fs.readFileSync(file, 'utf8');
   assert.ok(html.length > 400000, 'bundle size');
-  for (const marker of ['JINSHU_CATALOG', 'JinshuSavCodec', 'JinshuEditorCore', 'JinshuEditorUI']) {
+  for (const marker of ['JINSHU_CATALOG', 'JinshuSavCodec', 'JinshuEditorCore', 'JinshuEditorUI', 'atlas-combat-cards']) {
     assert.ok(html.includes(marker), 'missing ' + marker);
   }
   assert.equal(html.split('http://').length - 1, 0, 'no http');
   assert.equal(html.split('https://').length - 1, 0, 'no https');
+});
+
+// 13. REA combat formulas & bridge in codeAtlas + HTML
+test('rea combat formulas & native bridge in codeAtlas & html', () => {
+  const combat = Catalog.codeAtlas && Catalog.codeAtlas.combatFormulas;
+  assert.ok(Array.isArray(combat) && combat.length >= 5, 'combatFormulas array missing');
+  const joined = JSON.stringify(combat);
+  for (const id of [
+    'War_DamageDefenseRatio',
+    'SkillHitRate',
+    'WAR_HurtAct_attack',
+    'WAR_HurtDef_dmgprot',
+    'NativeBridgeSymbols'
+  ]) {
+    assert.ok(joined.includes(id), 'missing formula ' + id);
+  }
+  assert.match(joined, /atk\s*\/\s*\(\s*atk\s*\+\s*def\s*\)/);
+  assert.match(joined, /70/);
+  assert.match(joined, /90/);
+  assert.match(joined, /\+200%/);
+  assert.match(joined, /-20%/);
+  assert.match(joined, /80%/);
+  assert.match(joined, /SaveSMap/);
+  assert.match(joined, /SaveMMap/);
+  assert.match(joined, /ZipAES/);
+
+  const techKeys = new Set((Catalog.codeAtlas.technical || []).map(x => x.key));
+  for (const k of [
+    'LUA_COMBAT_DEF_RATIO',
+    'LUA_SKILL_HIT_RATE',
+    'LUA_HURT_ACT_ATTACK',
+    'LUA_HURT_DEF_DMGPROT',
+    'EXE_LUA_BRIDGE',
+    'TJM_TAIL_CONTAINERS'
+  ]) {
+    assert.ok(techKeys.has(k), 'missing technical key ' + k);
+  }
+
+  const pageHtml = fs.readFileSync(path.join(ROOT, 'src', 'editor-page.html'), 'utf8');
+  assert.ok(pageHtml.includes('atlas-combat-cards'), 'src/editor-page.html missing atlas-combat-cards');
+});
+
+// 14. TJM 7 containers (full tail & truncated demo tail)
+test('tjm full tail containers & demo safe parsing', () => {
+  const ptf = Array.from({ length: 1001 }, () => []);
+  const sptf = Array.from({ length: 1001 }, () => []);
+  ptf[0] = [9862, 0];
+  sptf[0] = [9862, 102019, 102020];
+
+  const rcObj = {
+    format: 1,
+    baseline: 'base-sha',
+    values: { testKey: 7 },
+    extras: { '661': { '0': 661 } },
+    appended: { Wugong: { '471': { '0': 471 } } }
+  };
+  const rcBytes = Array.from(Buffer.from(JSON.stringify(rcObj), 'utf8'));
+
+  // saveEventData(4 ints + 5 empty lists + WuPinXiuLianHigh{3:4})
+  // + lastYouLiDay(3 ints) + teammateInitialState(0) + CJApplied(5 ints)
+  // + SaveNPCInitialState(magic, ver=3, fCnt=0, npcCnt=0) + Puppet(5, 2)
+  // + RConfig + ZMWP(120, 1) + SaveIdentity(68 words)
+  const fullTail = [
+    1, 2, 0, 1,
+    0, 0, 0, 0, 0,
+    1, 3, 4,
+    3, 4, 15,
+    0,
+    1, 0, 1, 0, 1,
+    1313887047, 3, 0, 0,
+    5, 2,
+    rcBytes.length, ...rcBytes,
+    120, 1,
+    7395211, ...new Array(66).fill(0), 7395211
+  ];
+
+  const tjmBytes = Codec.buildTjm({
+    wordCount: 0,
+    miao: 100,
+    saveWallTime: 1700000100,
+    saveCreateTime: 1700000000,
+    reservedZero: 0,
+    prefixWords: [0, 0, 0, 0, 0, 0],
+    basicData: { gold: 5000, mjcz: 10, sp: 100, shichen: 1, day: 2, month: 3, year: 4, weather: 0, weatherCd: 0, staminaJl: 80 },
+    ptf,
+    sptf,
+    tailWords: fullTail
+  });
+
+  const parsed = Codec.parseTjm(tjmBytes);
+  const c = parsed.containers;
+  assert.ok(c, 'containers missing');
+  for (const name of ['PTF', 'SPTF', 'RConfig', 'ZMWP', '傀儡', 'CJApplied', 'WuPinXiuLianHigh']) {
+    assert.equal(c[name].present, true, name + ' present');
+    assert.ok(c[name].byteSize > 0, name + ' byteSize');
+    assert.ok(c[name].wordCount > 0, name + ' wordCount');
+  }
+  assert.deepEqual(c.ZMWP.summary.values, [120, 1]);
+  assert.equal(c['傀儡'].summary.personId, 5);
+  assert.equal(c['傀儡'].summary.rank, 2);
+  assert.equal(c.CJApplied.summary.fields.attack, 1);
+  assert.equal(c.WuPinXiuLianHigh.summary.entries['3'], 4);
+  assert.equal(c.SPTF.summary.equippedCount, 1);
+  assert.equal(c.SPTF.summary.storedCount, 2);
+
+  // Demo truncated tail must not throw and should mark absent tail containers false
+  const demoSav = Core.createDemoSavBytesSync(Catalog);
+  const dec = Codec.decodeSavSync(demoSav);
+  const dc = dec.tjm.containers;
+  assert.equal(dc.PTF.present, true);
+  assert.equal(dc.SPTF.present, true);
+  assert.equal(dc.RConfig.present, true);
+  for (const name of ['ZMWP', '傀儡', 'CJApplied', 'WuPinXiuLianHigh']) {
+    assert.equal(dc[name].present, false, 'demo ' + name + ' absent');
+  }
 });
 
 (async () => {

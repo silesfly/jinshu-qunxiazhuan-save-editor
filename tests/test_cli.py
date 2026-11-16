@@ -1,6 +1,8 @@
 import base64
+import contextlib
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -500,6 +502,143 @@ class JinshuEditorTests(unittest.TestCase):
         self.assertTrue(out_sav.exists())
         self.assertEqual(je.JinshuSaveSession(out_sav.read_bytes()).tjm.basic_data[0],
                          222222)
+
+    def _build_full_tail_sav_bytes(self, rconfig_override=None):
+        s = self._fresh()
+        s.tjm.ptf[0] = [9862, 0]
+        s.tjm.sptf[0] = [9862, 102019, 102020]
+        rc_obj = rconfig_override if rconfig_override is not None else {
+            "format": 1,
+            "baseline": "6e2c2ef4f984637864ccb028d49d2629abfdbc771fcd7625bcff62851a763b88",
+            "values": {"existingKey": 10},
+            "extras": {"661": {"0": 661}},
+            "appended": {"Wugong": {"471": {"0": 471}}, "Teji": {"101": {"0": 101}}},
+        }
+        rc_bytes = json.dumps(rc_obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        s.tjm.tail_words = [
+            1, 2, 0, 1,
+            0, 0, 0, 0, 0,
+            1, 3, 4,
+            3, 4, 15,
+            0,
+            1, 0, 1, 0, 1,
+            je.NPC_PROFILE_MAGIC, 3, 0, 0,
+            5, 2,
+            len(rc_bytes), *rc_bytes,
+            120, 1,
+            je.SAVE_IDENTITY, *([0] * 66), je.SAVE_IDENTITY,
+        ]
+        entries = list(s.entries)
+        entries.append(je._make_zip_entry("custom.bin", b"CUSTOM\x00\xffVERBATIM", compress=True))
+        for e in entries:
+            if e.name == je.TJM_NAME:
+                je._recompress_entry(e, je.build_tjm(s.tjm))
+        return je.build_zip_entries(entries)
+
+    def test_inspect_json_7_containers_and_entry_details(self):
+        full_sav = self.dir / "Save_2.sav"
+        full_sav.write_bytes(self._build_full_tail_sav_bytes())
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = je.main(["inspect", str(full_sav), "--json"])
+        self.assertEqual(rc, 0)
+        report = json.loads(buf.getvalue())
+
+        self.assertIn("entryDetails", report)
+        detail_map = {d["name"]: d for d in report["entryDetails"]}
+        for name in ("r.grp", "s.grp", "d.grp", "a.grp", "e.grp", "tjm", "custom.bin"):
+            self.assertIn(name, detail_map)
+            self.assertIsInstance(detail_map[name]["crc32"], int)
+            self.assertGreater(detail_map[name]["uncompSize"], 0)
+
+        c = report["containers"]
+        for cname in ("PTF", "SPTF", "RConfig", "ZMWP", "傀儡", "CJApplied", "WuPinXiuLianHigh"):
+            self.assertIn(cname, c)
+            self.assertTrue(c[cname]["present"], cname)
+            self.assertGreater(c[cname]["byteSize"], 0, cname)
+            self.assertGreater(c[cname]["wordCount"], 0, cname)
+            self.assertIsNotNone(c[cname]["summary"], cname)
+
+        self.assertEqual(c["ZMWP"]["summary"]["values"], [120, 1])
+        self.assertEqual(c["傀儡"]["summary"]["personId"], 5)
+        self.assertEqual(c["傀儡"]["summary"]["rank"], 2)
+        self.assertEqual(c["CJApplied"]["summary"]["fields"]["attack"], 1)
+        self.assertEqual(c["WuPinXiuLianHigh"]["summary"]["entries"]["3"], 4)
+        self.assertEqual(c["SPTF"]["summary"]["equippedCount"], 1)
+        self.assertEqual(c["SPTF"]["summary"]["storedCount"], 2)
+
+    def test_validate_containers_and_bad_rconfig(self):
+        good_sav = self.dir / "Save_3.sav"
+        good_sav.write_bytes(self._build_full_tail_sav_bytes())
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = je.main(["validate", str(good_sav), "--json"])
+        self.assertEqual(rc, 0)
+        v_good = json.loads(buf.getvalue())
+        self.assertTrue(v_good["ok"], v_good["errors"])
+        self.assertIn("containers", v_good)
+
+        bad_sav = self.dir / "Save_4.sav"
+        bad_sav.write_bytes(self._build_full_tail_sav_bytes(rconfig_override={
+            "format": 99,
+            "baseline": "base",
+            "values": {},
+            "extras": {},
+        }))
+        buf2 = io.StringIO()
+        with contextlib.redirect_stdout(buf2):
+            rc2 = je.main(["validate", str(bad_sav), "--json"])
+        self.assertEqual(rc2, 2)
+        v_bad = json.loads(buf2.getvalue())
+        self.assertFalse(v_bad["ok"])
+        self.assertTrue(any("RConfig" in e for e in v_bad["errors"]))
+
+    def test_edit_rconfig_and_untouched_verbatim_roundtrip(self):
+        src = self.dir / "Save_5.sav"
+        out = self.dir / "Save_6.sav"
+        out_del = self.dir / "Save_7.sav"
+        before_bytes = self._build_full_tail_sav_bytes()
+        src.write_bytes(before_bytes)
+
+        rc = je.main([
+            "edit", str(src), "-o", str(out),
+            "--rconfig-set", "testKey=42",
+            "--rconfig-set", 'label="hello"',
+        ])
+        self.assertEqual(rc, 0)
+        after_bytes = out.read_bytes()
+
+        # Verify untouched ZIP entries (including r.grp since only RConfig in tjm changed)
+        verbatim = je.verify_untouched_verbatim(
+            before_bytes, after_bytes,
+            editable_names=(je.TJM_NAME,),
+        )
+        self.assertTrue(verbatim["ok"])
+        for n in ("r.grp", "s.grp", "d.grp", "a.grp", "e.grp", "custom.bin"):
+            self.assertIn(n, verbatim["untouched"])
+
+        s_after = je.JinshuSaveSession(after_bytes)
+        rc_obj = s_after.get_rconfig()
+        self.assertEqual(rc_obj["values"]["existingKey"], 10)
+        self.assertEqual(rc_obj["values"]["testKey"], 42)
+        self.assertEqual(rc_obj["values"]["label"], "hello")
+        c = s_after.tjm.containers
+        for cname in ("PTF", "SPTF", "RConfig", "ZMWP", "傀儡", "CJApplied", "WuPinXiuLianHigh"):
+            self.assertTrue(c[cname]["present"], f"{cname} lost after rconfig-set")
+        self.assertEqual(c["ZMWP"]["summary"]["values"], [120, 1])
+        self.assertEqual(c["傀儡"]["summary"]["personId"], 5)
+        self.assertEqual(c["WuPinXiuLianHigh"]["summary"]["entries"]["3"], 4)
+        self.assertTrue(s_after.tjm.has_save_identity)
+
+        rc2 = je.main([
+            "edit", str(out), "-o", str(out_del),
+            "--rconfig-del", "testKey",
+        ])
+        self.assertEqual(rc2, 0)
+        s_del = je.JinshuSaveSession(out_del.read_bytes())
+        self.assertNotIn("testKey", s_del.get_rconfig()["values"])
+        self.assertEqual(s_del.get_rconfig()["values"]["label"], "hello")
+        self.assertEqual(s_del.tjm.containers["ZMWP"]["summary"]["values"], [120, 1])
 
 
 class NodeRoundTripTests(unittest.TestCase):

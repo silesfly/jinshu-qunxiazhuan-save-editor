@@ -572,16 +572,326 @@
       var kungfuIds = numericKeysSorted((obj.appended && obj.appended.Wugong) || {});
       var mijiIds = numericKeysSorted((obj.appended && obj.appended.Teji) || {});
       var personIds = numericKeysSorted((obj.appended && obj.appended.Person) || {});
+      var valuesObj = (obj.values && typeof obj.values === 'object') ? obj.values : null;
       return {
         found: true,
         format: obj.format || 1,
+        lengthPrefixed: true,
+        startOffset: i,
+        endOffset: i + 1 + len,
+        byteLength: len,
+        streamByteSize: 4 * (1 + len),
+        baseline: typeof obj.baseline === 'string' ? obj.baseline : '',
+        valuesCount: valuesObj ? Object.keys(valuesObj).length : 0,
         itemIds: itemIds,
         kungfuIds: kungfuIds,
         mijiIds: mijiIds,
         personIds: personIds
       };
     }
-    return { found: false, format: 0, itemIds: [], kungfuIds: [], mijiIds: [], personIds: [] };
+    return {
+      found: false,
+      format: 0,
+      lengthPrefixed: false,
+      startOffset: -1,
+      endOffset: -1,
+      byteLength: 0,
+      streamByteSize: 0,
+      baseline: '',
+      valuesCount: 0,
+      itemIds: [],
+      kungfuIds: [],
+      mijiIds: [],
+      personIds: []
+    };
+  }
+
+  function emptyContainer() {
+    return { present: false, byteSize: 0, wordCount: 0, summary: null };
+  }
+
+  function parseFullTailPrefixJs(body, rcStart, hasRConfig) {
+    var NPC_PROFILE_MAGIC = 1313887047;
+    var RECORD_FIELDS_COUNT = 61;
+    var SKILL_SLOTS_TJM = 15;
+    var out = {
+      WuPinXiuLianHigh: emptyContainer(),
+      CJApplied: emptyContainer(),
+      '傀儡': emptyContainer()
+    };
+    var limit = hasRConfig ? rcStart : body.length;
+    if (limit <= 0 || limit > body.length) return out;
+
+    var p = 0;
+    function need(k) { return p + k <= limit; }
+    function rd() { return body[p++]; }
+
+    // 1. saveEventData -> 끝부분 WuPinXiuLianHigh
+    if (!need(4)) return out;
+    p += 4;
+    if (!need(1)) return out;
+    var lmCnt = rd();
+    if (lmCnt < 0 || !need(5 * lmCnt)) return out;
+    p += 5 * lmCnt;
+
+    if (!need(1)) return out;
+    var neCnt = rd();
+    if (neCnt < 0) return out;
+    for (var ni = 0; ni < neCnt; ni++) {
+      if (!need(11)) return out;
+      p += 10;
+      var talkCnt = rd();
+      if (talkCnt < 0 || !need(talkCnt)) return out;
+      p += talkCnt;
+    }
+
+    if (!need(1)) return out;
+    var gnCnt = rd();
+    if (gnCnt < 0 || !need(3 * gnCnt)) return out;
+    p += 3 * gnCnt;
+
+    if (!need(1)) return out;
+    var ntCnt = rd();
+    if (ntCnt < 0 || !need(2 * ntCnt)) return out;
+    p += 2 * ntCnt;
+
+    if (!need(1)) return out;
+    var meCnt = rd();
+    if (meCnt < 0) return out;
+    for (var mi = 0; mi < meCnt; mi++) {
+      if (!need(1)) return out;
+      var nLen = rd();
+      if (nLen < 0 || !need(nLen + 1)) return out;
+      p += nLen;
+      var sLen = rd();
+      if (sLen < 0 || !need(sLen + 1)) return out;
+      p += sLen + 1;
+    }
+
+    if (!need(1)) return out;
+    var wpStart = p;
+    var wpCnt = rd();
+    if (wpCnt < 0 || !need(2 * wpCnt)) return out;
+    var wpEntries = {};
+    for (var wi = 0; wi < wpCnt; wi++) {
+      var wPid = rd();
+      var wHigh = rd();
+      wpEntries[String(wPid)] = wHigh;
+    }
+    var wpWords = p - wpStart;
+    var wpResult = {
+      present: true,
+      byteSize: 4 * wpWords,
+      wordCount: wpWords,
+      summary: { count: wpCnt, entries: wpEntries }
+    };
+
+    // 2. lastYouLiDay (1 or 3 words) + teammateInitialState + CJApplied + SaveNPCInitialState + 傀儡
+    function tryFrom(posStart) {
+      var q = posStart;
+      function qNeed(k) { return q + k <= limit; }
+      function qRd() { return body[q++]; }
+
+      if (!qNeed(1)) return null;
+      var tmCnt = qRd();
+      if (tmCnt < 0 || tmCnt > 1000) return null;
+      for (var ti = 0; ti < tmCnt; ti++) {
+        if (!qNeed(1 + RECORD_FIELDS_COUNT)) return null;
+        q += 1 + RECORD_FIELDS_COUNT;
+        for (var si = 0; si < SKILL_SLOTS_TJM; si++) {
+          if (!qNeed(3)) return null;
+          q += 2;
+          var nmLen = qRd();
+          if (nmLen < 0 || !qNeed(nmLen)) return null;
+          q += nmLen;
+        }
+        if (!qNeed(1)) return null;
+        var qxCnt = qRd();
+        if (qxCnt < 0 || !qNeed(qxCnt + 150 + 10 + 8 + 1)) return null;
+        q += qxCnt + 150 + 10 + 8;
+        var tfCnt = qRd();
+        if (tfCnt < 0 || !qNeed(tfCnt)) return null;
+        q += tfCnt;
+      }
+
+      if (!qNeed(5)) return null;
+      var cjFlags = [qRd(), qRd(), qRd(), qRd(), qRd()];
+
+      if (q < limit && body[q] === NPC_PROFILE_MAGIC) {
+        q += 1;
+        if (!qNeed(2)) return null;
+        var ver = qRd();
+        var fCnt = qRd();
+        if (ver < 1 || ver > 3 || fCnt < 0 || fCnt > 2048) return null;
+        for (var fi = 0; fi < fCnt; fi++) {
+          if (!qNeed(1)) return null;
+          var flen = qRd();
+          if (flen < 0 || flen > 256 || !qNeed(flen)) return null;
+          q += flen;
+        }
+        if (!qNeed(1)) return null;
+        var npcCnt = qRd();
+        if (npcCnt < 0 || npcCnt > 2048) return null;
+        for (var npi = 0; npi < npcCnt; npi++) {
+          if (!qNeed(1)) return null;
+          q += 1;
+          for (var ffi = 0; ffi < fCnt; ffi++) {
+            if (!qNeed(1)) return null;
+            var kind = qRd();
+            if (kind === 1 || kind === 3) {
+              if (!qNeed(1)) return null;
+              q += 1;
+            } else if (kind === 2) {
+              if (!qNeed(1)) return null;
+              var slen = qRd();
+              if (slen < 0 || slen > 65535 || !qNeed(slen)) return null;
+              q += slen;
+            } else if (kind !== 0) {
+              return null;
+            }
+          }
+          if (!qNeed(1)) return null;
+          var tCnt = qRd();
+          if (tCnt < 0 || tCnt > 4096 || !qNeed(tCnt)) return null;
+          q += tCnt;
+          if (ver >= 2) {
+            if (!qNeed(5)) return null;
+            q += 5;
+          }
+          if (ver >= 3) {
+            if (!qNeed(1)) return null;
+            var svCnt = qRd();
+            if (svCnt < 0 || svCnt > fCnt || !qNeed(2 * svCnt + 1)) return null;
+            q += 2 * svCnt;
+            var stCnt = qRd();
+            if (stCnt < 0 || stCnt > 4096 || !qNeed(2 * stCnt)) return null;
+            q += 2 * stCnt;
+          }
+        }
+      }
+
+      var rem = limit - q;
+      if (rem !== 0 && rem !== 2) return null;
+      var puppetRes = emptyContainer();
+      if (rem === 2) {
+        var pId = body[q] | 0;
+        var pRank = body[q + 1] | 0;
+        puppetRes = {
+          present: true,
+          byteSize: 8,
+          wordCount: 2,
+          summary: { personId: pId, rank: pRank, active: pId !== 0 }
+        };
+      }
+      return {
+        cj: {
+          present: true,
+          byteSize: 20,
+          wordCount: 5,
+          summary: {
+            flags: cjFlags,
+            fields: {
+              attack: cjFlags[0],
+              defense: cjFlags[1],
+              qinggong: cjFlags[2],
+              maxHp: cjFlags[3],
+              maxMp: cjFlags[4]
+            }
+          }
+        },
+        puppet: puppetRes
+      };
+    }
+
+    var steps = (p < limit && body[p] === 0) ? [1, 3] : [3, 1];
+    for (var si2 = 0; si2 < steps.length; si2++) {
+      var st = steps[si2];
+      if (p + st <= limit) {
+        var parsed = tryFrom(p + st);
+        if (parsed) {
+          out.WuPinXiuLianHigh = wpResult;
+          out.CJApplied = parsed.cj;
+          out['傀儡'] = parsed.puppet;
+          return out;
+        }
+      }
+    }
+    return out;
+  }
+
+  function parseTjmContainers(tailWords, ptf, sptf, hasSaveIdentity, rconfigMeta) {
+    var ptfWords = 0, ptfNonEmpty = 0, ptfTotal = 0;
+    for (var i = 0; i < (ptf ? ptf.length : 0); i++) {
+      var list1 = ptf[i] || [];
+      ptfWords += 1 + list1.length;
+      if (list1.length > 0) ptfNonEmpty++;
+      ptfTotal += list1.length;
+    }
+
+    var sptfWords = 0, sptfNonEmpty = 0, sptfEquipped = 0, sptfStored = 0;
+    for (var j = 0; j < (sptf ? sptf.length : 0); j++) {
+      var list2 = sptf[j] || [];
+      sptfWords += 1 + list2.length;
+      if (list2.length > 0) sptfNonEmpty++;
+      for (var k = 0; k < list2.length; k++) {
+        if (list2[k] < 100000) sptfEquipped++;
+        else sptfStored++;
+      }
+    }
+
+    var body = hasSaveIdentity && tailWords.length >= 68
+      ? tailWords.slice(0, tailWords.length - 68)
+      : tailWords.slice();
+
+    var rcFound = !!(rconfigMeta && rconfigMeta.found);
+    var zmwp = emptyContainer();
+    if (rcFound && rconfigMeta.lengthPrefixed && (body.length - rconfigMeta.endOffset === 2)) {
+      var z0 = body[rconfigMeta.endOffset] | 0;
+      var z1 = body[rconfigMeta.endOffset + 1] | 0;
+      zmwp = {
+        present: true,
+        byteSize: 8,
+        wordCount: 2,
+        summary: { values: [z0, z1], itemId: z0, extra: z1 }
+      };
+    }
+
+    var tailPrefix = parseFullTailPrefixJs(
+      body,
+      rcFound ? rconfigMeta.startOffset : body.length,
+      rcFound
+    );
+
+    return {
+      PTF: {
+        present: true,
+        byteSize: 4 * ptfWords,
+        wordCount: ptfWords,
+        summary: { slots: 1001, nonEmptyChars: ptfNonEmpty, totalEntries: ptfTotal }
+      },
+      SPTF: {
+        present: true,
+        byteSize: 4 * sptfWords,
+        wordCount: sptfWords,
+        summary: {
+          slots: 1001,
+          nonEmptyChars: sptfNonEmpty,
+          equippedCount: sptfEquipped,
+          storedCount: sptfStored,
+          totalEntries: sptfEquipped + sptfStored
+        }
+      },
+      RConfig: {
+        present: rcFound,
+        byteSize: rcFound ? rconfigMeta.byteLength : 0,
+        wordCount: rcFound ? (rconfigMeta.streamByteSize / 4) : 0,
+        summary: rcFound ? rconfigMeta : null
+      },
+      ZMWP: zmwp,
+      '傀儡': tailPrefix['傀儡'],
+      CJApplied: tailPrefix.CJApplied,
+      WuPinXiuLianHigh: tailPrefix.WuPinXiuLianHigh
+    };
   }
 
   function parseTjm(tjmBytes) {
@@ -689,7 +999,9 @@
     var hasSaveIdentity = tailWords.length >= 68 &&
       tailWords[tailWords.length - 68] === 7395211 &&
       tailWords[tailWords.length - 1] === 7395211;
-    var rconfigMeta = scanRConfigTail(tailWords);
+    var scanSrc = hasSaveIdentity ? tailWords.slice(0, tailWords.length - 68) : tailWords;
+    var rconfigMeta = scanRConfigTail(scanSrc);
+    var containers = parseTjmContainers(tailWords, ptf, sptf, hasSaveIdentity, rconfigMeta);
 
     return {
       wordCount: wordCount,
@@ -712,7 +1024,8 @@
       tailOffset: tailOffset,
       tailWords: Array.from(tailWords),
       hasSaveIdentity: hasSaveIdentity,
-      rconfigMeta: rconfigMeta
+      rconfigMeta: rconfigMeta,
+      containers: containers
     };
   }
 
@@ -941,6 +1254,8 @@
     writeInt32: writeInt32,
     readBig5Field: readBig5Field,
     writeBig5Field: writeBig5Field,
+    scanRConfigTail: scanRConfigTail,
+    parseTjmContainers: parseTjmContainers,
     parseTjm: parseTjm,
     buildTjm: buildTjm,
     decodeSav: decodeSav,

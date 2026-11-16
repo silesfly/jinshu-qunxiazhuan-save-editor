@@ -2384,6 +2384,7 @@
 
   function renderAtlas() {
     renderAtlasTechnical();
+    renderAtlasCombatFormulas();
     renderAtlasSurvival();
     renderAtlasRecords();
   }
@@ -2416,6 +2417,51 @@
       var card = el('div', { class: 'atlas-card' });
       card.appendChild(el('h3', { text: textOf(t.key) }));
       card.appendChild(el('p', { text: textOf(t.summary) }));
+      host.appendChild(card);
+    });
+  }
+
+  function renderAtlasCombatFormulas() {
+    var host = $('atlas-combat-cards');
+    if (!host) return;
+    clearNode(host);
+
+    var atlas = Catalog.codeAtlas || {};
+    var formulas = Array.isArray(atlas.combatFormulas) ? atlas.combatFormulas : [];
+    var q = atlasSearchQuery();
+
+    var items = formulas.filter(function (f) {
+      if (!q) return true;
+      var hay = (textOf(f.id) + ' ' + textOf(f.source) + ' ' + textOf(f.title) + ' ' + textOf(f.formula) + ' ' + textOf(f.clamp) + ' ' + textOf(f.notes)).toLowerCase();
+      return hay.indexOf(q) !== -1;
+    });
+
+    if (!items.length) {
+      host.appendChild(el('div', { class: 'muted', text: '일치하는 전투 공식이 없습니다.' }));
+      return;
+    }
+
+    items.forEach(function (f) {
+      var card = el('div', { class: 'atlas-card' });
+      var titleEl = el('h3', null, [
+        el('span', { text: textOf(f.title || f.id) }),
+        el('span', { class: 'code', text: textOf(f.id) })
+      ]);
+      var dl = el('dl');
+      dl.appendChild(el('dt', { text: '출처' }));
+      dl.appendChild(el('dd', { class: 'mono', text: textOf(f.source) }));
+      dl.appendChild(el('dt', { text: '공식' }));
+      dl.appendChild(el('dd', { class: 'mono', text: textOf(f.formula) }));
+      if (f.clamp) {
+        dl.appendChild(el('dt', { text: '상한/클램프' }));
+        dl.appendChild(el('dd', { text: textOf(f.clamp) }));
+      }
+      if (f.notes) {
+        dl.appendChild(el('dt', { text: '비고' }));
+        dl.appendChild(el('dd', { text: textOf(f.notes) }));
+      }
+      card.appendChild(titleEl);
+      card.appendChild(dl);
       host.appendChild(card);
     });
   }
@@ -2475,7 +2521,9 @@
 
     var filtered = records.filter(function (r) {
       if (!q) return true;
-      return (textOf(r.code) + ' ' + textOf(r.kind) + ' ' + textOf(r.name) + ' ' + textOf(r.desc)).toLowerCase().indexOf(q) !== -1;
+      var rName = r.name || r.ko || '';
+      var rDesc = r.desc || r.summary || '';
+      return (textOf(r.code) + ' ' + textOf(r.kind) + ' ' + textOf(rName) + ' ' + textOf(rDesc)).toLowerCase().indexOf(q) !== -1;
     }).slice(0, 120);
 
     if (!filtered.length) {
@@ -2487,8 +2535,8 @@
       var tr = el('tr');
       tr.appendChild(el('td', { text: textOf(r.code) }));
       tr.appendChild(el('td', { text: textOf(r.kind) }));
-      tr.appendChild(el('td', { text: textOf(r.name) }));
-      tr.appendChild(el('td', { text: textOf(r.desc) }));
+      tr.appendChild(el('td', { text: textOf(r.name || r.ko) }));
+      tr.appendChild(el('td', { text: textOf(r.desc || r.summary) }));
       tbody.appendChild(tr);
     });
   }

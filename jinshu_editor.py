@@ -18,9 +18,11 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import copy
 import datetime as _dt
 import hashlib
 import json
+import math
 import os
 import re
 import struct
@@ -127,6 +129,9 @@ STAT_RANGES: Dict[str, Tuple[int, int]] = {
 SAVE_IDENTITY = 7395211
 GOLD_ITEM_ID = 174
 MJ_CZ_ITEM_ID = 550
+NPC_PROFILE_MAGIC = 1313887047
+RECORD_FIELDS_COUNT = 61
+SKILL_SLOTS_TJM = 15
 
 TJM_BASIC_KEYS = ("gold", "mjcz", "sp", "shichen", "day", "month", "year",
                   "weather", "weatherCd", "staminaJl")
@@ -528,22 +533,108 @@ class RGrp:
 # ----------------------------------------------------------------------------
 # tjm codec
 # ----------------------------------------------------------------------------
-def scan_rconfig_tail(words: Sequence[int]) -> Dict[str, List[int]]:
-    result = {"itemIds": [], "kungfuIds": [], "mijiIds": [], "personIds": []}
-    keys = (("extras", "itemIds"), ("appended:Wugong", "kungfuIds"),
-            ("appended:Teji", "mijiIds"), ("appended:Person", "personIds"))
+def _extract_rconfig_id_lists(obj: Any) -> Dict[str, List[int]]:
+    result: Dict[str, List[int]] = {"itemIds": [], "kungfuIds": [], "mijiIds": [], "personIds": []}
+    if not isinstance(obj, dict):
+        return result
+    sources = (
+        (obj.get("extras") or {}, "itemIds"),
+        ((obj.get("appended") or {}).get("Wugong") or {}, "kungfuIds"),
+        ((obj.get("appended") or {}).get("Teji") or {}, "mijiIds"),
+        ((obj.get("appended") or {}).get("Person") or {}, "personIds"),
+    )
+    for node, target in sources:
+        if not isinstance(node, dict):
+            continue
+        ids = []
+        for k in node.keys():
+            try:
+                kid = int(k)
+            except (TypeError, ValueError):
+                continue
+            if kid not in ids:
+                ids.append(kid)
+        ids.sort()
+        result[target] = ids
+    return result
+
+
+def _json_object_is_rconfig(obj: Any) -> bool:
+    return isinstance(obj, dict) and (
+        obj.get("format") == 1 or "extras" in obj or "appended" in obj
+    )
+
+
+def scan_rconfig_tail_detail(words: Sequence[int]) -> Dict[str, Any]:
+    empty: Dict[str, Any] = {
+        "found": False,
+        "format": 0,
+        "startOffset": -1,
+        "endOffset": -1,
+        "lengthPrefixed": False,
+        "byteSize": 0,
+        "streamByteSize": 0,
+        "baseline": "",
+        "valuesCount": 0,
+        "object": None,
+        "itemIds": [],
+        "kungfuIds": [],
+        "mijiIds": [],
+        "personIds": [],
+    }
     n = len(words)
+
+    def _build_res(obj: Dict[str, Any], start: int, end: int, prefixed: bool, blen: int) -> Dict[str, Any]:
+        ids = _extract_rconfig_id_lists(obj)
+        vals = obj.get("values")
+        return {
+            "found": True,
+            "format": int(obj.get("format") or 1),
+            "startOffset": start,
+            "endOffset": end,
+            "lengthPrefixed": prefixed,
+            "byteSize": blen,
+            "streamByteSize": 4 * (1 + blen) if prefixed else 4 * blen,
+            "baseline": obj.get("baseline") if isinstance(obj.get("baseline"), str) else "",
+            "valuesCount": len(vals) if isinstance(vals, dict) else 0,
+            "object": obj,
+            "itemIds": ids["itemIds"],
+            "kungfuIds": ids["kungfuIds"],
+            "mijiIds": ids["mijiIds"],
+            "personIds": ids["personIds"],
+        }
+
+    # 1. 길이 프리픽스 [len, ...utf8_bytes] 탐색 (sav-codec.js와 동일 규칙)
+    for i in range(n):
+        length = int(words[i])
+        if not (20 <= length <= 500000 and i + 1 + length <= n):
+            continue
+        if int(words[i + 1]) != 0x7B or int(words[i + 2]) != 0x22:
+            continue
+        if int(words[i + length]) != 0x7D:
+            continue
+        chunk = words[i + 1:i + 1 + length]
+        if any(not (0 <= int(b) <= 255) for b in chunk):
+            continue
+        try:
+            obj = json.loads(bytes(int(b) for b in chunk).decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            continue
+        if _json_object_is_rconfig(obj):
+            return _build_res(obj, i, i + 1 + length, True, length)
+
+    # 2. 레거시 비프리픽스 fallback 탐색
     i = 0
     while i < n:
-        if words[i] != 0x7B:
+        if int(words[i]) != 0x7B:
             i += 1
             continue
         depth = 0
         in_string = False
         escape = False
         j = i
-        while j < n and 0 <= words[j] <= 255:
-            ch = words[j]
+        while j < n and 0 <= int(words[j]) <= 255:
+            ch = int(words[j])
             if in_string:
                 if escape:
                     escape = False
@@ -561,37 +652,377 @@ def scan_rconfig_tail(words: Sequence[int]) -> Dict[str, List[int]]:
                     if depth == 0:
                         break
             j += 1
-        if j < n and words[j] == 0x7D and depth == 0:
-            raw = bytes(words[i:j + 1])
+        if j < n and int(words[j]) == 0x7D and depth == 0:
+            raw = bytes(int(b) for b in words[i:j + 1])
             try:
                 obj = json.loads(raw.decode("utf-8"))
             except (UnicodeDecodeError, ValueError):
                 i = j + 1
                 continue
-            for tag, target in keys:
-                node: Any = obj
-                ok = True
-                if tag == "extras":
-                    node = obj.get("extras", {}) if isinstance(obj, dict) else {}
-                else:
-                    _, sub = tag.split(":")
-                    node = (obj.get("appended", {}) or {}).get(sub, {}) if isinstance(obj, dict) else {}
-                if not isinstance(node, dict):
-                    ok = False
-                if ok:
-                    for k in sorted(node.keys(), key=lambda x: str(x)):
-                        try:
-                            kid = int(k)
-                        except (TypeError, ValueError):
-                            continue
-                        if kid not in result[target]:
-                            result[target].append(kid)
+            if _json_object_is_rconfig(obj):
+                return _build_res(obj, i, j + 1, False, len(raw))
             i = j + 1
         else:
             i += 1
-    for k in result:
-        result[k].sort()
-    return result
+
+    return empty
+
+
+def scan_rconfig_tail(words: Sequence[int]) -> Dict[str, List[int]]:
+    detail = scan_rconfig_tail_detail(words)
+    return {
+        "itemIds": list(detail["itemIds"]),
+        "kungfuIds": list(detail["kungfuIds"]),
+        "mijiIds": list(detail["mijiIds"]),
+        "personIds": list(detail["personIds"]),
+    }
+
+
+def _empty_container() -> Dict[str, Any]:
+    return {"present": False, "byteSize": 0, "wordCount": 0, "summary": None}
+
+
+def _try_parse_full_tail_prefix(body: Sequence[int], rc_start: int, has_rconfig: bool) -> Dict[str, Any]:
+    out: Dict[str, Any] = {
+        "WuPinXiuLianHigh": _empty_container(),
+        "CJApplied": _empty_container(),
+        "傀儡": _empty_container(),
+    }
+    limit = rc_start if has_rconfig else len(body)
+    if limit <= 0 or limit > len(body):
+        return out
+
+    p = 0
+
+    def need(k: int) -> bool:
+        return p + k <= limit
+
+    # 1. saveEventData -> 끝부분 WuPinXiuLianHigh
+    if not need(5):
+        return out
+    p += 4
+    lm_cnt = int(body[p])
+    p += 1
+    if lm_cnt < 0 or not need(5 * lm_cnt):
+        return out
+    p += 5 * lm_cnt
+
+    if not need(1):
+        return out
+    ne_cnt = int(body[p])
+    p += 1
+    if ne_cnt < 0:
+        return out
+    for _ in range(ne_cnt):
+        if not need(11):
+            return out
+        p += 10
+        talk_cnt = int(body[p])
+        p += 1
+        if talk_cnt < 0 or not need(talk_cnt):
+            return out
+        p += talk_cnt
+
+    if not need(1):
+        return out
+    gn_cnt = int(body[p])
+    p += 1
+    if gn_cnt < 0 or not need(3 * gn_cnt):
+        return out
+    p += 3 * gn_cnt
+
+    if not need(1):
+        return out
+    nt_cnt = int(body[p])
+    p += 1
+    if nt_cnt < 0 or not need(2 * nt_cnt):
+        return out
+    p += 2 * nt_cnt
+
+    if not need(1):
+        return out
+    me_cnt = int(body[p])
+    p += 1
+    if me_cnt < 0:
+        return out
+    for _ in range(me_cnt):
+        if not need(1):
+            return out
+        nlen = int(body[p])
+        p += 1
+        if nlen < 0 or not need(nlen + 1):
+            return out
+        p += nlen
+        slen = int(body[p])
+        p += 1
+        if slen < 0 or not need(slen + 1):
+            return out
+        p += slen + 1
+
+    if not need(1):
+        return out
+    wp_start = p
+    wp_cnt = int(body[p])
+    p += 1
+    if wp_cnt < 0 or not need(2 * wp_cnt):
+        return out
+    wp_entries: Dict[str, int] = {}
+    for _ in range(wp_cnt):
+        wp_pid = int(body[p])
+        wp_high = int(body[p + 1])
+        p += 2
+        wp_entries[str(wp_pid)] = wp_high
+    wp_words = p - wp_start
+    wp_container = {
+        "present": True,
+        "byteSize": 4 * wp_words,
+        "wordCount": wp_words,
+        "summary": {"count": wp_cnt, "entries": wp_entries},
+    }
+
+    # 2. lastYouLiDay(1 or 3 words) -> teammateInitialState -> CJApplied -> SaveNPCInitialState -> 傀儡
+    def _try_from(q_start: int) -> Optional[Tuple[Dict[str, Any], Dict[str, Any]]]:
+        q = q_start
+
+        def q_need(k: int) -> bool:
+            return q + k <= limit
+
+        if not q_need(1):
+            return None
+        tm_cnt = int(body[q])
+        q += 1
+        if tm_cnt < 0 or tm_cnt > 1000:
+            return None
+        for _ in range(tm_cnt):
+            if not q_need(1 + RECORD_FIELDS_COUNT):
+                return None
+            q += 1 + RECORD_FIELDS_COUNT
+            for _slot in range(SKILL_SLOTS_TJM):
+                if not q_need(3):
+                    return None
+                nm_len = int(body[q + 2])
+                q += 3
+                if nm_len < 0 or not q_need(nm_len):
+                    return None
+                q += nm_len
+            if not q_need(1):
+                return None
+            qx_cnt = int(body[q])
+            q += 1
+            if qx_cnt < 0 or not q_need(qx_cnt + 150 + 10 + 8 + 1):
+                return None
+            q += qx_cnt + 150 + 10 + 8
+            tf_cnt = int(body[q])
+            q += 1
+            if tf_cnt < 0 or not q_need(tf_cnt):
+                return None
+            q += tf_cnt
+
+        if not q_need(5):
+            return None
+        cj_flags = [int(body[q + k]) for k in range(5)]
+        q += 5
+
+        if q < limit and int(body[q]) == NPC_PROFILE_MAGIC:
+            q += 1
+            if not q_need(2):
+                return None
+            ver = int(body[q])
+            f_cnt = int(body[q + 1])
+            q += 2
+            if ver < 1 or ver > 3 or f_cnt < 0 or f_cnt > 2048:
+                return None
+            for _ in range(f_cnt):
+                if not q_need(1):
+                    return None
+                flen = int(body[q])
+                q += 1
+                if flen < 0 or flen > 256 or not q_need(flen):
+                    return None
+                q += flen
+            if not q_need(1):
+                return None
+            npc_cnt = int(body[q])
+            q += 1
+            if npc_cnt < 0 or npc_cnt > 2048:
+                return None
+            for _ in range(npc_cnt):
+                if not q_need(1):
+                    return None
+                q += 1
+                for _f in range(f_cnt):
+                    if not q_need(1):
+                        return None
+                    kind = int(body[q])
+                    q += 1
+                    if kind in (1, 3):
+                        if not q_need(1):
+                            return None
+                        q += 1
+                    elif kind == 2:
+                        if not q_need(1):
+                            return None
+                        slen = int(body[q])
+                        q += 1
+                        if slen < 0 or slen > 65535 or not q_need(slen):
+                            return None
+                        q += slen
+                    elif kind != 0:
+                        return None
+                if not q_need(1):
+                    return None
+                t_cnt = int(body[q])
+                q += 1
+                if t_cnt < 0 or t_cnt > 4096 or not q_need(t_cnt):
+                    return None
+                q += t_cnt
+                if ver >= 2:
+                    if not q_need(5):
+                        return None
+                    q += 5
+                if ver >= 3:
+                    if not q_need(1):
+                        return None
+                    sv_cnt = int(body[q])
+                    q += 1
+                    if sv_cnt < 0 or sv_cnt > f_cnt or not q_need(2 * sv_cnt + 1):
+                        return None
+                    q += 2 * sv_cnt
+                    st_cnt = int(body[q])
+                    q += 1
+                    if st_cnt < 0 or st_cnt > 4096 or not q_need(2 * st_cnt):
+                        return None
+                    q += 2 * st_cnt
+
+        rem = limit - q
+        if rem not in (0, 2):
+            return None
+        puppet_c = _empty_container()
+        if rem == 2:
+            p_id, p_rank = int(body[q]), int(body[q + 1])
+            puppet_c = {
+                "present": True,
+                "byteSize": 8,
+                "wordCount": 2,
+                "summary": {"personId": p_id, "rank": p_rank, "active": p_id != 0},
+            }
+        cj_c = {
+            "present": True,
+            "byteSize": 20,
+            "wordCount": 5,
+            "summary": {
+                "flags": cj_flags,
+                "fields": {
+                    "attack": cj_flags[0],
+                    "defense": cj_flags[1],
+                    "qinggong": cj_flags[2],
+                    "maxHp": cj_flags[3],
+                    "maxMp": cj_flags[4],
+                },
+            },
+        }
+        return cj_c, puppet_c
+
+    steps = (1, 3) if (p < limit and int(body[p]) == 0) else (3, 1)
+    for st in steps:
+        if p + st <= limit:
+            res = _try_from(p + st)
+            if res is not None:
+                cj_c, puppet_c = res
+                out["WuPinXiuLianHigh"] = wp_container
+                out["CJApplied"] = cj_c
+                out["傀儡"] = puppet_c
+                return out
+    return out
+
+
+def parse_tjm_tail_containers(tjm: "TjmData") -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    ptf_words = sum(1 + len(lst) for lst in tjm.ptf)
+    ptf_non_empty = sum(1 for lst in tjm.ptf if lst)
+    ptf_total = sum(len(lst) for lst in tjm.ptf)
+
+    sptf_words = sum(1 + len(lst) for lst in tjm.sptf)
+    sptf_non_empty = sum(1 for lst in tjm.sptf if lst)
+    sptf_equipped = sum(1 for lst in tjm.sptf for w in lst if int(w) < 100000)
+    sptf_stored = sum(1 for lst in tjm.sptf for w in lst if int(w) >= 100000)
+
+    has_id = (len(tjm.tail_words) >= 68
+              and int(tjm.tail_words[-68]) == SAVE_IDENTITY
+              and int(tjm.tail_words[-1]) == SAVE_IDENTITY)
+    tjm.has_save_identity = has_id
+    body = list(tjm.tail_words[:-68] if has_id else tjm.tail_words)
+    detail = scan_rconfig_tail_detail(body)
+    rc_found = bool(detail.get("found"))
+
+    zmwp = _empty_container()
+    if rc_found and detail.get("lengthPrefixed") and (len(body) - int(detail["endOffset"]) == 2):
+        z0 = int(body[detail["endOffset"]])
+        z1 = int(body[detail["endOffset"] + 1])
+        zmwp = {
+            "present": True,
+            "byteSize": 8,
+            "wordCount": 2,
+            "summary": {"values": [z0, z1], "itemId": z0, "extra": z1},
+        }
+
+    tail_prefix = _try_parse_full_tail_prefix(
+        body,
+        int(detail["startOffset"]) if rc_found else len(body),
+        rc_found,
+    )
+
+    rc_summary = {
+        "found": rc_found,
+        "format": detail["format"],
+        "baseline": detail["baseline"],
+        "valuesCount": detail["valuesCount"],
+        "lengthPrefixed": detail["lengthPrefixed"],
+        "itemIds": list(detail["itemIds"]),
+        "kungfuIds": list(detail["kungfuIds"]),
+        "mijiIds": list(detail["mijiIds"]),
+        "personIds": list(detail["personIds"]),
+    }
+
+    containers: Dict[str, Any] = {
+        "PTF": {
+            "present": True,
+            "byteSize": 4 * ptf_words,
+            "wordCount": ptf_words,
+            "summary": {"slots": 1001, "nonEmptyChars": ptf_non_empty, "totalEntries": ptf_total},
+        },
+        "SPTF": {
+            "present": True,
+            "byteSize": 4 * sptf_words,
+            "wordCount": sptf_words,
+            "summary": {
+                "slots": 1001,
+                "nonEmptyChars": sptf_non_empty,
+                "equippedCount": sptf_equipped,
+                "storedCount": sptf_stored,
+                "totalEntries": sptf_equipped + sptf_stored,
+            },
+        },
+        "RConfig": {
+            "present": rc_found,
+            "byteSize": int(detail["byteSize"]),
+            "streamByteSize": int(detail["streamByteSize"]),
+            "wordCount": int(detail["streamByteSize"]) // 4,
+            "summary": rc_summary if rc_found else None,
+        },
+        "ZMWP": zmwp,
+        "傀儡": tail_prefix["傀儡"],
+        "CJApplied": tail_prefix["CJApplied"],
+        "WuPinXiuLianHigh": tail_prefix["WuPinXiuLianHigh"],
+    }
+    tjm.rconfig_detail = detail
+    tjm.containers = containers
+    tjm.rconfig_meta = {
+        "itemIds": list(detail["itemIds"]),
+        "kungfuIds": list(detail["kungfuIds"]),
+        "mijiIds": list(detail["mijiIds"]),
+        "personIds": list(detail["personIds"]),
+    }
+    return detail, containers
 
 
 class TjmData:
@@ -609,6 +1040,8 @@ class TjmData:
         self.tail_words: List[int] = []
         self.rconfig_meta: Dict[str, List[int]] = {
             "itemIds": [], "kungfuIds": [], "mijiIds": [], "personIds": []}
+        self.rconfig_detail: Dict[str, Any] = {}
+        self.containers: Dict[str, Any] = {}
         self.has_save_identity = False
 
     def all_words(self) -> List[int]:
@@ -692,11 +1125,7 @@ def parse_tjm(data: bytes) -> TjmData:
             p += 1 + cnt
 
     t.tail_words = words[p:]
-    t.has_save_identity = (len(t.tail_words) >= 68
-                           and t.tail_words[-68] == SAVE_IDENTITY
-                           and t.tail_words[-1] == SAVE_IDENTITY)
-    scan_src = t.tail_words[:-68] if t.has_save_identity else t.tail_words
-    t.rconfig_meta = scan_rconfig_tail(scan_src)
+    parse_tjm_tail_containers(t)
     return t
 
 
@@ -711,6 +1140,35 @@ def build_tjm(tjm: TjmData, update_timestamp: bool = False) -> bytes:
     return header + body
 
 
+def verify_untouched_verbatim(
+    before_bytes: bytes,
+    after_bytes: bytes,
+    editable_names: Sequence[str] = (R_GRP_NAME, TJM_NAME),
+) -> Dict[str, Any]:
+    """Verify non-editable PKZIP entries survived byte-for-byte verbatim."""
+    editable = set(editable_names)
+    before_entries = parse_zip_entries(before_bytes)
+    after_entries = parse_zip_entries(after_bytes)
+    before_untouched = [e for e in before_entries if e.name not in editable]
+    after_untouched = [e for e in after_entries if e.name not in editable]
+    if len(before_untouched) != len(after_untouched):
+        raise ValueError(
+            f"비편집 엔트리 개수가 일치하지 않습니다: {len(before_untouched)} != {len(after_untouched)}"
+        )
+    for idx, (a, b) in enumerate(zip(before_untouched, after_untouched)):
+        if a.name != b.name:
+            raise ValueError(f"비편집 엔트리 순서/이름 불일치[{idx}]: {a.name!r} != {b.name!r}")
+        for attr in ("method", "crc32", "comp_size", "uncomp_size", "raw_comp_bytes"):
+            if getattr(a, attr) != getattr(b, attr):
+                raise ValueError(f"비편집 엔트리 {a.name!r}의 {attr}가 변경되었습니다")
+    return {
+        "ok": True,
+        "untouched": [e.name for e in before_untouched],
+        "sha256Before": hashlib.sha256(before_bytes).hexdigest(),
+        "sha256After": hashlib.sha256(after_bytes).hexdigest(),
+    }
+
+
 # ----------------------------------------------------------------------------
 # Session
 # ----------------------------------------------------------------------------
@@ -718,28 +1176,97 @@ class JinshuSaveSession:
     """High level read/write session for a single .sav file."""
 
     def __init__(self, sav_bytes: bytes) -> None:
+        self._orig_sav_bytes = bytes(sav_bytes)
         self.entries = parse_zip_entries(sav_bytes)
         self._by_name = {e.name: e for e in self.entries}
         for required in (R_GRP_NAME, TJM_NAME):
             if required not in self._by_name:
                 raise ValueError(f".sav 안에 {required} 항목이 없습니다")
         r_entry = self._by_name[R_GRP_NAME]
-        self.r = RGrp(_decompress_entry(r_entry))
-        self.tjm = parse_tjm(_decompress_entry(self._by_name[TJM_NAME]))
+        tjm_entry = self._by_name[TJM_NAME]
+        self._orig_r_bytes = _decompress_entry(r_entry)
+        self._orig_tjm_bytes = _decompress_entry(tjm_entry)
+        self.r = RGrp(self._orig_r_bytes)
+        self.tjm = parse_tjm(self._orig_tjm_bytes)
         self.catalog = load_catalog()
+        self._talent_ids = _catalog_ids(self.catalog, "talents")
+        self._refresh_rconfig_ids()
+
+    def _refresh_rconfig_ids(self) -> None:
         self._kf_ids = (set(range(1, 462)) | set(self.tjm.rconfig_meta.get("kungfuIds", []))) - set(range(462, 471))
         self._miji_ids = set(range(1, 101)) | set(self.tjm.rconfig_meta.get("mijiIds", []))
         self._item_ids = set(range(0, 661)) | set(self.tjm.rconfig_meta.get("itemIds", []))
-        self._talent_ids = _catalog_ids(self.catalog, "talents")
 
     # -- persistence ---------------------------------------------------------
     def to_bytes(self, update_timestamp: bool = False) -> bytes:
         r_entry = self._by_name[R_GRP_NAME]
-        if bytes(self.r.buf) != _decompress_entry(r_entry) or r_entry.dirty:
+        if bytes(self.r.buf) != self._orig_r_bytes or r_entry.dirty:
             _recompress_entry(r_entry, bytes(self.r.buf))
         tjm_entry = self._by_name[TJM_NAME]
-        _recompress_entry(tjm_entry, build_tjm(self.tjm, update_timestamp))
+        new_tjm = build_tjm(self.tjm, update_timestamp)
+        if new_tjm != self._orig_tjm_bytes or update_timestamp or tjm_entry.dirty:
+            _recompress_entry(tjm_entry, new_tjm)
         return build_zip_entries(self.entries)
+
+    # -- rconfig safe editing ------------------------------------------------
+    def get_rconfig(self) -> Optional[Dict[str, Any]]:
+        parse_tjm_tail_containers(self.tjm)
+        detail = self.tjm.rconfig_detail or {}
+        if not detail.get("found") or not isinstance(detail.get("object"), dict):
+            return None
+        return copy.deepcopy(detail["object"])
+
+    def _apply_rconfig_obj(self, obj: Dict[str, Any]) -> None:
+        parse_tjm_tail_containers(self.tjm)
+        detail = self.tjm.rconfig_detail or {}
+        if not detail.get("found"):
+            raise ValueError("RConfig 블록이 없는 세이브입니다")
+        if not detail.get("lengthPrefixed"):
+            raise ValueError("길이 프리픽스 기반 RConfig 블록만 안전 편집을 지원합니다")
+        if obj.get("format") != 1:
+            raise ValueError(f"지원하지 않는 RConfig format입니다: {obj.get('format')!r}")
+        if "baseline" in obj and not isinstance(obj.get("baseline"), str):
+            raise ValueError("RConfig baseline은 문자열이어야 합니다")
+        if not isinstance(obj.get("values"), dict):
+            raise ValueError("RConfig values는 딕셔너리여야 합니다")
+        encoded = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        if len(encoded) > 8 * 1024 * 1024:
+            raise ValueError("RConfig JSON 크기가 8MB를 초과합니다")
+        start = int(detail["startOffset"])
+        end = int(detail["endOffset"])
+        words = list(self.tjm.tail_words)
+        words[start:end] = [len(encoded), *encoded]
+        self.tjm.tail_words = words
+        parse_tjm_tail_containers(self.tjm)
+        self._refresh_rconfig_ids()
+
+    def set_rconfig_value(self, key: str, value: Any) -> None:
+        if not isinstance(key, str) or not key:
+            raise ValueError("RConfig 키는 비어 있지 않은 문자열이어야 합니다")
+        if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+            raise ValueError("RConfig 값은 int, float 또는 str만 허용됩니다")
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError("RConfig float 값은 유한수여야 합니다")
+        obj = self.get_rconfig()
+        if obj is None:
+            raise ValueError("RConfig 블록이 없는 세이브입니다")
+        if "values" not in obj:
+            obj["values"] = {}
+        if not isinstance(obj["values"], dict):
+            raise ValueError("RConfig values가 올바른 딕셔너리가 아닙니다")
+        obj["values"][key] = value
+        self._apply_rconfig_obj(obj)
+
+    def remove_rconfig_value(self, key: str) -> bool:
+        obj = self.get_rconfig()
+        if obj is None:
+            return False
+        values = obj.get("values")
+        if not isinstance(values, dict) or key not in values:
+            return False
+        del values[key]
+        self._apply_rconfig_obj(obj)
+        return True
 
     # -- convenience ---------------------------------------------------------
     @property
@@ -754,6 +1281,8 @@ class JinshuSaveSession:
     def validate(self) -> Dict[str, Any]:
         errors: List[str] = []
         warnings: List[str] = []
+        parse_tjm_tail_containers(self.tjm)
+        self._refresh_rconfig_ids()
         party = self.r.get_party()
         seen = set()
         for slot, pid in enumerate(party):
@@ -831,7 +1360,31 @@ class JinshuSaveSession:
             base_sp = self.r.get_i16(BASE_OFFSETS["spFragment"])
             if sp != base_sp:
                 errors.append(f"SP 조각 {sp} 와 기본값 {base_sp} 불일치")
-        return {"ok": not errors, "errors": errors, "warnings": warnings}
+
+        # RConfig & tail container validation
+        rc_detail = self.tjm.rconfig_detail or {}
+        if rc_detail.get("found"):
+            rc_obj = rc_detail.get("object")
+            if not isinstance(rc_obj, dict):
+                errors.append("RConfig JSON 객체가 유효하지 않습니다")
+            else:
+                if rc_obj.get("format") != 1:
+                    errors.append(f"RConfig format 값이 1이 아닙니다: {rc_obj.get('format')!r}")
+                if "baseline" in rc_obj and not isinstance(rc_obj.get("baseline"), str):
+                    errors.append("RConfig baseline이 문자열이 아닙니다")
+                if "values" in rc_obj and not isinstance(rc_obj.get("values"), dict):
+                    errors.append("RConfig values가 딕셔너리가 아닙니다")
+        containers = self.tjm.containers or {}
+        for cname in ("PTF", "SPTF", "RConfig", "ZMWP", "傀儡", "CJApplied", "WuPinXiuLianHigh"):
+            cinfo = containers.get(cname)
+            if not isinstance(cinfo, dict):
+                errors.append(f"tjm 컨테이너 {cname} 요약이 누락되었습니다")
+        return {
+            "ok": not errors,
+            "errors": errors,
+            "warnings": warnings,
+            "containers": containers,
+        }
 
     # -- mutations -----------------------------------------------------------
     def _check_range(self, key: str, val: int) -> int:
@@ -1237,10 +1790,21 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
     report = {
         "file": str(args.sav),
         "entries": [e.name for e in session.entries],
+        "entryDetails": [
+            {
+                "name": e.name,
+                "method": e.method,
+                "crc32": e.crc32,
+                "compSize": e.comp_size,
+                "uncompSize": e.uncomp_size,
+            }
+            for e in session.entries
+        ],
         "basic": basic,
         "party": party,
         "spFragment": session.r.get_base("spFragment"),
         "rconfig": session.tjm.rconfig_meta,
+        "containers": session.tjm.containers,
         "hasSaveIdentity": session.tjm.has_save_identity,
     }
     if args.char is not None:
@@ -1265,6 +1829,12 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
         print(f"엔트리: {', '.join(report['entries'])}")
         print(f"금액: {basic['gold']}  명중가치: {basic['mjcz']}  SP: {basic['sp']}")
         print(f"파티: {party}")
+        c_summary = [
+            f"{cname}:{'Y' if cinfo.get('present') else 'N'}({cinfo.get('byteSize', 0)}B)"
+            for cname, cinfo in (report.get("containers") or {}).items()
+        ]
+        if c_summary:
+            print(f"컨테이너: {', '.join(c_summary)}")
         if "character" in report:
             for k, v in report["character"].items():
                 if k in ("kungfu", "miji"):
@@ -1277,6 +1847,20 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
             for it in report["inventory"]:
                 print(f"  아이템 {it['itemId']} x{it['count']}")
     return 0
+
+
+def _parse_rconfig_cli_value(text: str) -> Any:
+    raw = str(text)
+    if raw.startswith('"') or (raw and raw[0] in "-0123456789"):
+        try:
+            parsed = json.loads(raw)
+            if not isinstance(parsed, bool) and isinstance(parsed, (int, float, str)):
+                if isinstance(parsed, float) and not math.isfinite(parsed):
+                    raise ValueError("유한한 숫자만 허용됩니다")
+                return parsed
+        except ValueError:
+            pass
+    return raw
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:
@@ -1353,7 +1937,15 @@ def _cmd_edit(args: argparse.Namespace) -> int:
     for spec in args.set_party or []:
         slot, cid = [int(x) for x in spec.split(":")]
         session.set_party_slot(slot, cid)
+    for spec in getattr(args, "rconfig_set", None) or []:
+        if "=" not in spec:
+            raise ValueError(f"--rconfig-set 형식 오류(KEY=VALUE 필요): {spec!r}")
+        r_key, _, r_val = spec.partition("=")
+        session.set_rconfig_value(r_key.strip(), _parse_rconfig_cli_value(r_val))
+    for r_key in getattr(args, "rconfig_del", None) or []:
+        session.remove_rconfig_value(r_key.strip())
     new_bytes = session.to_bytes(update_timestamp=bool(args.update_timestamp))
+    verify_untouched_verbatim(session._orig_sav_bytes, new_bytes)
     info = save_sav_safely(args.sav, new_bytes, output_path=args.output,
                            force=bool(args.force))
     if args.json:
@@ -1676,6 +2268,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--set-item", action="append", default=[])
     p.add_argument("--remove-item", action="append", default=[])
     p.add_argument("--set-party", action="append", default=[])
+    p.add_argument("--rconfig-set", action="append", default=[],
+                   help="RConfig values[KEY] 안전 설정 (KEY=VALUE)")
+    p.add_argument("--rconfig-del", action="append", default=[],
+                   help="RConfig values[KEY] 삭제 (KEY)")
     p.set_defaults(func=_cmd_edit)
 
     p = sub.add_parser("serve", help="로컬 웹 편집기 실행")

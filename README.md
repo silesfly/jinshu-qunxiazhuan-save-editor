@@ -18,7 +18,7 @@
 | 2 `인물 & 능력치 (758인)` | 파티원(15칸)·명명 인물·전체 인물 필터, 이름·별호(`Big5` 안전 인코딩), 체질(`0~100`)·자질(`0~100`)·등급(`0~120`)·체력/내력·내력 성질(`음·양·조화·천강[0~3]`)·공격/방어/경공·6대 병기 숙련 및 성장치(`권·지·검·도·특수·암기`)·의료/용독/해독/항독·좌우호박·주운 내공/부운 내공/주운 경공 무공 ID(`0~999`)·순/역경락(각 14칸)·혈도(164칸)·장비 슬롯. |
 | 3 `무공 · 천부 · 비급` | 인물별 15슬롯 무공 도감(`462`종 정적 + `RConfig` 동적 확장 ID, 엔진 내부 플레이스홀더 `462~470` 수동 할당 차단)·레벨(`0~999`), 인물 비급 10슬롯(`+874`), 일반 천부(`PTF`, `205`종 `CC.PTFSM`) 및 잔장 천부(`SPTF`, 활성 `id` / 비장착 보유 `id + 100000` 규칙 준수) 편집. |
 | 4 `인벤토리 & 재화 (1,000칸)` | 은량(`174`, `tjm.basic_data[0]`)·비급잔장(`550`, `tjm.basic_data[1]`)·수련 파편(`tjm.basic_data[2]` & `Base +40`)·정력 동기화, `1,000`칸 인벤토리(활성 상한 `900`칸) 수량 편집·정리 및 `661`종 정적+`RConfig` 확장 한글/원문 병기 아이템 도감 검색·스택 병합 추가(`0: 소환단` 유효 아이템 / `-1: 빈 칸` 엄격 구분). |
-| 5 `REA 도감 & Raw 뷰어` | 역공학 코드 사전(`kf-*`·`item-*`·`tf-*`·`person-*` 다중어 검색, `/` 빠른 포커스), 세이브 무결성·`RConfig` 동적 ID 검증 리포트, `tjm` / 주요 세그먼트 구조화 JSON 열람. |
+| 5 `코드·공식·생존 도감` | 역공학 코드 사전(`kf-*`·`item-*`·`tf-*`·`person-*` 다중어 검색, `/` 빠른 포커스), 세이브 무결성·`RConfig` 동적 ID 검증 리포트, `jywar.lua` / `jinshuqunxiazhuan.exe` REA 실측 전투 공식(`War_DamageDefenseRatio = atk/(atk+def)`, `SkillHitRate` `[70, 90]%` 클램프 및 경공 차 보정, `WAR_HurtAct_attack` `+200%` 상한 및 내외공 불일치 `-20%`, `WAR_HurtDef_dmgprot` `80%` 감면 상한, `SaveSMap`/`SaveMMap`/`ZipAES` 브리지) 아틀라스 열람. |
 
 ## 안전 아키텍처
 
@@ -43,16 +43,17 @@
 | `Save_%d.sav` | PKZIP (`deflate-raw`) | 엔트리: `r.grp`(편집), `tjm`(편집), `s.grp`·`d.grp`·`a.grp`·`e.grp`(원본 압축 바이트 패스스루) |
 | `r.grp` | `1,211,424` B 고정 | `Base`(`4,102` B: 메타·파티 `15×2`B·인벤토리 `1,000×4`B) + `Person`(`968,724` B, `758×1,278` B, ID `0..757`) + `Thing`(`136,166` B, `661×206` B) + `Scene`(`9,126` B, `169×54` B) + `Wugong`(`89,490` B, `471×190` B) + `Shop`(`180` B, `5×36` B) + `Teji`(`3,636` B, `101×36` B) |
 | `Person` 오프셋 | `1,278` B / 인 | 체질(`+4`)·이름(`+8`, `10`B Big5)·별호(`+18`, `10`B Big5)·등급(`+30`)·체력(`+34/+36`)·무기/방어구(`+46/+48`)·내력 성질(`+80`, `0:음/1:양/2:조화/3:천강`)·내력(`+82/+84`)·6병기(`+100..+110`)·좌우호박(`+118`)·자질(`+122`)·무공 15칸(`+128` ID `15×2`B / `+158` 레벨 `15×2`B `0..999`)·주운내공(`+222`, 무공 ID)·주운경공(`+224`, 무공 ID)·문파(`+270`)·문파직무(`+308`)·부운내공(`+312`, 무공 ID)·비급(`+874`)·순/역경락(`+894/+922`)·혈도(`+950`) |
-| `tjm` | int32 LE 다중 섹션 + 후미 JSON | `SaveIdentity = 7395211` 고정, `basic_data`(`0`: 은량, `1`: 비급잔장, `2`: 수련 파편), `PTF`(일반 천부 ID 목록), `SPTF`(활성 `id` / 보유 비활성 `id + 100000`), 선택적 `RConfig` 동적 확장(`Person >= 758`, `Thing >= 661`, `Kungfu >= 471`, `Miji >= 101`) |
+| `tjm` | int32 LE 다중 섹션 + 후미 JSON | `SaveIdentity = 7395211` 고정, `basic_data`(`0`: 은량, `1`: 비급잔장, `2`: 수련 파편), `PTF`(일반 천부 ID 목록), `SPTF`(활성 `id` / 보유 비활성 `id + 100000`), `WuPinXiuLianHigh`(수련 포인트 상위 16비트), `CJApplied`(계정 업적 플래그 5개), `傀儡`(대연결 포획 `{personId, rank}`), 선택적 `RConfig` 동적 확장(`Person >= 758`, `Thing >= 661`, `Kungfu >= 471`, `Miji >= 101`), `ZMWP`(주목 유물 2워드) |
 | 재화 동기화 | `r.grp` ↔ `tjm` | 은량(`tjm.basic_data[0]` ↔ 아이템 `174` 마커 슬롯), 비급잔장(`tjm.basic_data[1]` ↔ 아이템 `550` 수량), 수련 파편(`tjm.basic_data[2]` ↔ `Base.spFragment +40`)을 원자적으로 동시 갱신(`0: 소환단`과 구별하여 `-1` 빈 칸 처리) |
 
 ## CLI 사용 예
 
 ```bash
-python3 jinshu_editor.py inspect   Save_1.sav
+python3 jinshu_editor.py inspect   Save_1.sav --json          # 7대 tjm 컨테이너(PTF/SPTF/RConfig/ZMWP/傀儡/CJApplied/WuPinXiuLianHigh) & ZIP 엔트리 메타 포함
 python3 jinshu_editor.py validate  Save_1.sav
 python3 jinshu_editor.py presets
 python3 jinshu_editor.py edit      Save_1.sav --preset wealth_max --gold 500000 --mjcz 999 --sp 30000
+python3 jinshu_editor.py edit      Save_1.sav --rconfig-set testKey=42 --output Save_1_rc.sav
 python3 jinshu_editor.py serve     --save-dir ./save --port 8765
 ```
 
@@ -62,8 +63,8 @@ python3 jinshu_editor.py serve     --save-dir ./save --port 8765
 python3 tools/extract_catalog.py                        # 무협위키 코퍼스 → src/catalog-data.js 생성
 python3 build.py                                        # 단일 HTML 번들 빌드 (외부 URL 0건 검증 포함)
 python3 build.py --exe --webview2 ./vendor/webview2     # Windows .NET Framework 4.8 csc.exe 단일 EXE 빌드
-node tests/test_editor.cjs                              # JS 코덱·프리셋·인코딩·검증 회귀 테스트 (12건)
-python3 -m unittest discover -s tests -v                # Python 코덱·CLI·서버·보안 회귀 테스트 (24건)
+node tests/test_editor.cjs                              # JS 코덱·프리셋·인코딩·REA 아틀라스·검증 회귀 테스트 (14건)
+python3 -m unittest discover -s tests -v                # Python 코덱·CLI·컨테이너·서버·보안 회귀 테스트 (27건)
 ```
 
 `.exe`는 `.NET Framework 4.8 csc.exe`로 컴파일되며 `src/SaveStore.cs`, `src/SaveEditor.cs`는 C# 5.0 문법만 사용합니다. `Microsoft.Web.WebView2`(`1.0.4258.31`) 런타임 DLL과 라이선스가 실행 파일 내부 리소스로 임베드되어 별도 설치 파일 복사 없이 실행됩니다.

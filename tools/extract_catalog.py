@@ -229,6 +229,73 @@ def build_code_atlas(corpus, atlas, codes, dash):
             "key": "SP_FRAGMENT",
             "summary": 'CC.Sp in tjm BasicData[2] synced with Base["碎片"] at r.grp offset 40, 0..32767',
         },
+        {
+            "key": "LUA_COMBAT_DEF_RATIO",
+            "summary": "War_DamageDefenseRatio(attack, defense) = attack / (attack + defense) (jywar.lua:23747; attack == 0 -> 0)",
+        },
+        {
+            "key": "LUA_SKILL_HIT_RATE",
+            "summary": "SkillHitRate(att_agi, att_hit, def_agi, def_evade): 명중[800..2000]->85~100%, 회피[300..1000]->5~20%, 경공 차[±1000]->±15%, 최종 [70, 90]% 클램프 (jywar.lua:3203)",
+        },
+        {
+            "key": "LUA_HURT_ACT_ATTACK",
+            "summary": "WAR_HurtAct_attack: 가산형 증폭 합산 상한 MAX_BONUS = 2.0 (+200%), 내외공 성질 불일치 시 * 0.8 (-20%) 페널티 (jywar.lua:25583)",
+        },
+        {
+            "key": "LUA_HURT_DEF_DMGPROT",
+            "summary": "WAR_HurtDef_dmgprot: 방어 측 피해 감면 총합 상한 MAX_REDUCTION = 0.8 (최대 80% 피해 감소) (jywar.lua:27295)",
+        },
+        {
+            "key": "EXE_LUA_BRIDGE",
+            "summary": "jinshuqunxiazhuan.exe (pei-x86-64) C/SDL2+Lua 브리지 심볼: SaveSMap, SaveMMap, LoadWarMap, ZipAES, WarEftId (jymain.lua SaveRecord/tjmsave 연동)",
+        },
+        {
+            "key": "TJM_TAIL_CONTAINERS",
+            "summary": "tjm 직렬화 컨테이너: PTF(0..1000), SPTF(활성 id / 미장착 id+100000), WuPinXiuLianHigh, CJApplied(5), 傀儡(2), RConfig(JSON), ZMWP(2), SaveIdentity(7395211)",
+        },
+    ]
+
+    combat_formulas = [
+        {
+            "id": "War_DamageDefenseRatio",
+            "source": "jywar.lua:23747",
+            "title": "방어력 감쇄율 (공/방 쌍곡선)",
+            "formula": "atk / (atk + def)  (atk == 0 -> 0)",
+            "clamp": "0.0 .. 1.0",
+            "notes": "공격력과 방어력의 비율형 쌍곡선 감쇄로 방어력 상승에 따른 체감 효율이 점진 감소합니다.",
+        },
+        {
+            "id": "SkillHitRate",
+            "source": "jywar.lua:3203",
+            "title": "명중·회피율 및 경공 차 보정",
+            "formula": "clamp(hit[800..2000->85..100%] - evade[300..1000->5..20%] + clamp(att_agi - def_agi, -1000, 1000)/1000 * 15%, 70%, 90%)",
+            "clamp": "[70, 90]%",
+            "notes": "경공(Qg) 차 ±1000 기준 ±15% 가감 후 소수점 둘째 자리 반올림 및 최종 [70%, 90%] 클램프 적용.",
+        },
+        {
+            "id": "WAR_HurtAct_attack",
+            "source": "jywar.lua:25583",
+            "title": "공격 피해 증폭 상한 & 내외공 상성",
+            "formula": "actualBoost = min(totalRawBonus, 2.0); 내외공 불일치 시 hurt *= 0.8",
+            "clamp": "+200% (MAX_BONUS = 2.0) / -20% 불일치",
+            "notes": "가산형 피해 증폭 합산 상한 +200%, 무공과 내력 성질(음/양/조화/천강) 불일치 시 -20%(*0.8) 감쇠.",
+        },
+        {
+            "id": "WAR_HurtDef_dmgprot",
+            "source": "jywar.lua:27295",
+            "title": "방어 피해 감면 상한",
+            "formula": "finalReduction = min(combinedReduction, 0.8)",
+            "clamp": "80% (MAX_REDUCTION = 0.8)",
+            "notes": "방어·호체·감면 효과 합산 시 최대 80% 피해 감소 상한을 적용합니다.",
+        },
+        {
+            "id": "NativeBridgeSymbols",
+            "source": "jinshuqunxiazhuan.exe (pei-x86-64)",
+            "title": "네이티브 C/SDL2+Lua 브리지 & ZipAES",
+            "formula": "SaveSMap / SaveMMap / LoadWarMap / ZipAES / WarEftId",
+            "clamp": "PKZIP(r.grp, tjm, s/d/a/e.grp) + tjm SaveRecord/tjmsave",
+            "notes": "바이너리 브리지 함수가 맵/세이브 압축과 jymain.lua(8129~8620)의 PTF/SPTF/RConfig/ZMWP/傀儡/CJApplied/WuPinXiuLianHigh 직렬화를 연동합니다.",
+        },
     ]
 
     records = []
@@ -249,6 +316,7 @@ def build_code_atlas(corpus, atlas, codes, dash):
 
     return {
         "technical": technical,
+        "combatFormulas": combat_formulas,
         "records": records,
         "survivalChecklist": survival,
     }

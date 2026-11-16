@@ -397,7 +397,8 @@
         tailOffset: decoded.tjm.tailOffset,
         tailWords: decoded.tjm.tailWords,
         hasSaveIdentity: decoded.tjm.hasSaveIdentity,
-        rconfigMeta: decoded.tjm.rconfigMeta
+        rconfigMeta: decoded.tjm.rconfigMeta,
+        containers: decoded.tjm.containers || null
       }));
     }
 
@@ -472,7 +473,8 @@
         tailOffset: ot.tailOffset,
         tailWords: ot.tailWords.slice(),
         hasSaveIdentity: ot.hasSaveIdentity,
-        rconfigMeta: JSON.parse(JSON.stringify(ot.rconfigMeta))
+        rconfigMeta: JSON.parse(JSON.stringify(ot.rconfigMeta)),
+        containers: ot.containers ? JSON.parse(JSON.stringify(ot.containers)) : null
       };
       for (var i = 0; i < state.entries.length; i++) {
         if (state.entries[i]) state.entries[i].dirty = false;
