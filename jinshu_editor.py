@@ -1971,7 +1971,7 @@ LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
 def _read_html(html_path: Optional[str]) -> bytes:
     if html_path:
         return Path(html_path).read_bytes()
-    dist = SCRIPT_DIR / "dist" / "JinshuSaveEditor-v1.0.html"
+    dist = SCRIPT_DIR / "dist" / "JinshuSaveEditor-v1.1.html"
     if dist.is_file():
         return dist.read_bytes()
     return _bundle_html()

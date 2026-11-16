@@ -377,7 +377,7 @@ test('talents ptf/sptf, toggle, remove, reset, async', async () => {
 
 // 12. Dist bundle
 test('dist html bundle offline', () => {
-  const file = path.join(ROOT, 'dist', 'JinshuSaveEditor-v1.0.html');
+  const file = path.join(ROOT, 'dist', 'JinshuSaveEditor-v1.1.html');
   assert.ok(fs.existsSync(file), 'dist bundle exists');
   const html = fs.readFileSync(file, 'utf8');
   assert.ok(html.length > 400000, 'bundle size');

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Build script for Jinshu Qunxiazhuan Save Editor v1.0.
+"""Build script for Jinshu Qunxiazhuan Save Editor v1.1.
 
 Produces:
-    dist/JinshuSaveEditor-v1.0.html   (always)
-    dist/JinshuSaveEditor-v1.0.exe    (when --exe + --webview2 are supplied)
+    dist/JinshuSaveEditor-v1.1.html   (always)
+    dist/JinshuSaveEditor-v1.1.exe    (when --exe + --webview2 are supplied)
 
 The HTML bundle is fully offline: no http:// or https:// references may
 survive the bundling step, and every script is inlined via <script> blocks.
@@ -20,8 +20,8 @@ SRC = os.path.join(ROOT, "src")
 DIST = os.path.join(ROOT, "dist")
 
 HTML_IN = os.path.join(SRC, "editor-page.html")
-HTML_OUT = os.path.join(DIST, "JinshuSaveEditor-v1.0.html")
-EXE_OUT = os.path.join(DIST, "JinshuSaveEditor-v1.0.exe")
+HTML_OUT = os.path.join(DIST, "JinshuSaveEditor-v1.1.html")
+EXE_OUT = os.path.join(DIST, "JinshuSaveEditor-v1.1.exe")
 
 SCRIPT_ORDER = ("catalog-data.js", "sav-codec.js", "editor-core.js", "editor-ui.js")
 BUNDLE_START = "<!-- BUNDLE_SCRIPTS_START -->"
@@ -161,7 +161,7 @@ def build_exe(webview2_dir):
 
 
 def main(argv):
-    parser = argparse.ArgumentParser(description="Build Jinshu Qunxiazhuan Save Editor v1.0")
+    parser = argparse.ArgumentParser(description="Build Jinshu Qunxiazhuan Save Editor v1.1")
     parser.add_argument("--exe", action="store_true", help="also compile the Windows exe")
     parser.add_argument("--webview2", default=None, help="path to the WebView2 SDK folder")
     args = parser.parse_args(argv)

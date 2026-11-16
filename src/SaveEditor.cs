@@ -15,8 +15,8 @@ using Microsoft.Web.WebView2.WinForms;
 
 [assembly: AssemblyTitle("Jinshu Qunxiazhuan Save Editor")]
 [assembly: AssemblyProduct("Jinshu Qunxiazhuan Save Editor")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
 namespace JinshuSaveEditor
 {
@@ -72,7 +72,7 @@ namespace JinshuSaveEditor
             else
             {
                 string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                RuntimeFolder = Path.Combine(localAppData, "JinshuSaveEditor", "runtime-1.0.0");
+                RuntimeFolder = Path.Combine(localAppData, "JinshuSaveEditor", "runtime-1.1.0");
             }
 
             AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
@@ -102,7 +102,7 @@ namespace JinshuSaveEditor
             CoreWebView2Environment.SetLoaderDllFolderPath(RuntimeFolder);
 
             MainForm = new Form();
-            MainForm.Text = "Jinshu Qunxiazhuan Save Editor v1.0";
+            MainForm.Text = "Jinshu Qunxiazhuan Save Editor v1.1";
             MainForm.Width = 1180;
             MainForm.Height = 820;
             MainForm.MinimumSize = new Size(880, 600);

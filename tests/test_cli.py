@@ -477,7 +477,7 @@ class JinshuEditorTests(unittest.TestCase):
         self.assertTrue(build.has_external_url_ref('<script src="//cdn.example/a.js"></script>'))
         self.assertTrue(build.has_external_url_ref("background:url(//cdn.example/a.png)"))
         self.assertFalse(build.has_external_url_ref("// normal JS comment"))
-        self.assertFalse(build.has_external_url_ref("dist/JinshuSaveEditor-v1.0.html"))
+        self.assertFalse(build.has_external_url_ref("dist/JinshuSaveEditor-v1.1.html"))
 
     def test_cli_commands(self):
         presets_out = self.dir / "presets.json"

@@ -1,13 +1,13 @@
-# 금서군협전 세이브 에디터 v1.0 (Jinshu Qunxiazhuan Save Editor)
+# 금서군협전 세이브 에디터 v1.1 (Jinshu Qunxiazhuan Save Editor)
 
-금서군협전 **1.07 V2.5 FIX 234 (한글 패치 호환)** 세이브(`Save_1.sav` ~ `Save_10.sav`)를 로컬 오프라인에서 안전하게 편집하는 **Windows x64 단일 실행 파일 `JinshuSaveEditor-v1.0.exe`** 정본 도구 및 단일 HTML·무의존성 Python 3 CLI 패키지입니다.
+금서군협전 **1.07 V2.5 FIX 234 (한글 패치 호환)** 세이브(`Save_1.sav` ~ `Save_10.sav`)를 로컬 오프라인에서 안전하게 편집하는 **Windows x64 단일 실행 파일 `JinshuSaveEditor-v1.1.exe`** 정본 도구 및 단일 HTML·무의존성 Python 3 CLI 패키지입니다.
 
 ## 3가지 실행 표면
 
 | 표면 | 경로 | 설명 |
 |------|------|------|
-| Windows x64 앱 | `dist/JinshuSaveEditor-v1.0.exe` | `.NET Framework 4.8` + `WebView2` 리소스 내장 독립 실행형. 원본 자동 `.bak` 백업·SHA-256 재검증·롤백 지원. |
-| 단일 HTML | `dist/JinshuSaveEditor-v1.0.html` | 외부 네트워크 요청(`http(s)://`) 0건의 100% 오프라인 1파일 브라우저 에디터(`DecompressionStream` / `CompressionStream` 내장 ZIP 코덱). |
+| Windows x64 앱 | `dist/JinshuSaveEditor-v1.1.exe` | `.NET Framework 4.8` + `WebView2` 리소스 내장 독립 실행형. 원본 자동 `.bak` 백업·SHA-256 재검증·롤백 지원. |
+| 단일 HTML | `dist/JinshuSaveEditor-v1.1.html` | 외부 네트워크 요청(`http(s)://`) 0건의 100% 오프라인 1파일 브라우저 에디터(`DecompressionStream` / `CompressionStream` 내장 ZIP 코덱). |
 | Python CLI/서버 | `jinshu_editor.py` | 서드파티 패키지 없이 표준 라이브러리만 사용하는 CLI(`inspect`·`validate`·`presets`·`edit`) 및 `127.0.0.1` 로컬 서버(`serve`). |
 
 ## 지원 편집 범위 (5개 탭 & 원클릭 프리셋 6종)
@@ -72,8 +72,8 @@ python3 -m unittest discover -s tests -v                # Python 코덱·CLI·�
 ## 네이티브 자체 테스트 (`--self-test`)
 
 ```powershell
-.\dist\JinshuSaveEditor-v1.0.exe --self-test .\selftest-demo
-.\dist\JinshuSaveEditor-v1.0.exe --self-test .\selftest-real .\save\Save_1.sav
+.\dist\JinshuSaveEditor-v1.1.exe --self-test .\selftest-demo
+.\dist\JinshuSaveEditor-v1.1.exe --self-test .\selftest-real .\save\Save_1.sav
 ```
 
 자체 테스트는 WebView2 런타임 기동 → 세이브 로드(데모 생성 또는 지정 `.sav` 시드 사본) → 재화·잔장 편집 및 저장 → `.backup-*.bak` SHA-256 생성 검증 → 재로드 값 검증 → `s.grp` 원본 압축 바이트 패스스루 검증을 수행하고 결과를 `receipt.json`으로 기록합니다.
@@ -81,5 +81,5 @@ python3 -m unittest discover -s tests -v                # Python 코덱·CLI·�
 ## 라이선스 및 데이터 출처 고지
 
 - 본 저장소의 에디터 소스 코드·스크립트·테스트·문서는 [MIT License](LICENSE)로 배포됩니다.
-- Windows 배포 아카이브(`JinshuSaveEditor-v1.0-Windows.zip`) 및 단일 실행 파일 내부 리소스에 포함된 `Microsoft.Web.WebView2` 런타임 구성요소(`Microsoft.Web.WebView2.Core.dll`, `Microsoft.Web.WebView2.WinForms.dll`, `WebView2Loader.dll`)는 동봉된 `WebView2-LICENSE.txt` 조건을 따릅니다.
+- Windows 배포 아카이브(`JinshuSaveEditor-v1.1-Windows.zip`) 및 단일 실행 파일 내부 리소스에 포함된 `Microsoft.Web.WebView2` 런타임 구성요소(`Microsoft.Web.WebView2.Core.dll`, `Microsoft.Web.WebView2.WinForms.dll`, `WebView2Loader.dll`)는 동봉된 `WebView2-LICENSE.txt` 조건을 따릅니다.
 - `src/catalog-data.js`에 수록된 인물·아이템·무공·천부·비급 ID 및 명칭 매핑은 세이브 파일 상호운용 및 표시 편의를 위한 참조 메타데이터이며, 금서군협전 원작 및 모드/한글 패치 관련 일체의 지식재산권은 각 원저작자에게 귀속됩니다. 본 저장소와 배포본에는 게임 실행 파일, 그래픽·오디오 에셋, 실제 플레이어 세이브 파일이 일절 포함되지 않습니다.
