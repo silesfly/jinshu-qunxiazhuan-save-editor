@@ -8,7 +8,7 @@ import sqlite3
 from pathlib import Path
 
 GAME = "금서군협전"
-VERSION = "1.07 V2.5 FIX 234"
+VERSION = "1.07 V2.5 FIX 238"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEF_DATA = os.environ.get("JINSHU_DATA_DIR", str(REPO_ROOT / "data" / "jinshu-data"))
 DEF_CORPUS = os.environ.get("JINSHU_CORPUS_DIR", str(REPO_ROOT / "data" / "corpus"))
@@ -231,7 +231,7 @@ def build_code_atlas(corpus, atlas, codes, dash):
         },
         {
             "key": "LUA_COMBAT_DEF_RATIO",
-            "summary": "War_DamageDefenseRatio(attack, defense) = attack / (attack + defense) (jywar.lua:23747; attack == 0 -> 0)",
+            "summary": "War_DamageDefenseRatio(attack, defense) = attack / (attack + defense) (jywar.lua:23756; attack == 0 -> 0)",
         },
         {
             "key": "LUA_SKILL_HIT_RATE",
@@ -239,11 +239,15 @@ def build_code_atlas(corpus, atlas, codes, dash):
         },
         {
             "key": "LUA_HURT_ACT_ATTACK",
-            "summary": "WAR_HurtAct_attack: 가산형 증폭 합산 상한 MAX_BONUS = 2.0 (+200%), 내외공 성질 불일치 시 * 0.8 (-20%) 페널티 (jywar.lua:25583)",
+            "summary": "WAR_HurtAct_attack: 가산형 증폭 합산 상한 MAX_BONUS = 2.0 (+200%), 내외공 성질 불일치 시 * 0.8 (-20%) 페널티 (jywar.lua:25597)",
         },
         {
             "key": "LUA_HURT_DEF_DMGPROT",
-            "summary": "WAR_HurtDef_dmgprot: 방어 측 피해 감면 총합 상한 MAX_REDUCTION = 0.8 (최대 80% 피해 감소) (jywar.lua:27295)",
+            "summary": "WAR_HurtDef_dmgprot: 방어 측 피해 감면 총합 상한 MAX_REDUCTION = 0.8 (최대 80% 피해 감소) (jywar.lua:27309)",
+        },
+        {
+            "key": "LUA_SHARED_DAMAGE_FIX238",
+            "summary": "FIX 238: 영서분수 분담 피해(sharedDamage=true)가 분담 대상의 면상·감상·보호막(myHurt/War_DamageShield)을 경유 정산 (jywar.lua:23788, 45284)",
         },
         {
             "key": "EXE_LUA_BRIDGE",
@@ -258,7 +262,7 @@ def build_code_atlas(corpus, atlas, codes, dash):
     combat_formulas = [
         {
             "id": "War_DamageDefenseRatio",
-            "source": "jywar.lua:23747",
+            "source": "jywar.lua:23756",
             "title": "방어력 감쇄율 (공/방 쌍곡선)",
             "formula": "atk / (atk + def)  (atk == 0 -> 0)",
             "clamp": "0.0 .. 1.0",
@@ -274,7 +278,7 @@ def build_code_atlas(corpus, atlas, codes, dash):
         },
         {
             "id": "WAR_HurtAct_attack",
-            "source": "jywar.lua:25583",
+            "source": "jywar.lua:25597",
             "title": "공격 피해 증폭 상한 & 내외공 상성",
             "formula": "actualBoost = min(totalRawBonus, 2.0); 내외공 불일치 시 hurt *= 0.8",
             "clamp": "+200% (MAX_BONUS = 2.0) / -20% 불일치",
@@ -282,11 +286,19 @@ def build_code_atlas(corpus, atlas, codes, dash):
         },
         {
             "id": "WAR_HurtDef_dmgprot",
-            "source": "jywar.lua:27295",
+            "source": "jywar.lua:27309",
             "title": "방어 피해 감면 상한",
             "formula": "finalReduction = min(combinedReduction, 0.8)",
             "clamp": "80% (MAX_REDUCTION = 0.8)",
             "notes": "방어·호체·감면 효과 합산 시 최대 80% 피해 감소 상한을 적용합니다.",
+        },
+        {
+            "id": "War_DamageShield_SharedDamage",
+            "source": "jywar.lua:23788 / 45284",
+            "title": "영서분수 분담 피해 정산 (FIX 238)",
+            "formula": "myHurt(target, hurt, silent, sharedDamage=true) -> War_DamageShield(target, hurt, true)",
+            "clamp": "대상 면상·감상·보호막 적용 (공격자 관통·파순·연격회피 미중복)",
+            "notes": "FIX 238에서 영서분수 분담 피해가 분담 대상 자신의 면상·감상·보호막을 거치도록 보정되었고, FIX 236에서 항룡십팔장(26) 유여부진 후경 살기 산입 및 개방 천하제일방(1035)↔개세무쌍 연동이 수정되었습니다.",
         },
         {
             "id": "NativeBridgeSymbols",

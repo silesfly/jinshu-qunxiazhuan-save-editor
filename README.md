@@ -1,6 +1,6 @@
 # 금서군협전 세이브 에디터 v1.1 (Jinshu Qunxiazhuan Save Editor)
 
-금서군협전 **1.07 V2.5 FIX 234 (한글 패치 호환)** 세이브(`Save_1.sav` ~ `Save_10.sav`)를 로컬 오프라인에서 안전하게 편집하는 **Windows x64 단일 실행 파일 `JinshuSaveEditor-v1.1.exe`** 정본 도구 및 단일 HTML·무의존성 Python 3 CLI 패키지입니다.
+금서군협전 **1.07 V2.5 FIX 238 (FIX 234~238 바이너리·DB·세이브 구조 100% 동일, 한글 패치 호환)** 세이브(`Save_1.sav` ~ `Save_10.sav`)를 로컬 오프라인에서 안전하게 편집하는 **Windows x64 단일 실행 파일 `JinshuSaveEditor-v1.1.exe`** 정본 도구 및 단일 HTML·무의존성 Python 3 CLI 패키지입니다.
 
 ## 3가지 실행 표면
 

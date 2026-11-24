@@ -1,4 +1,4 @@
-/* src/editor-core.js — Jinshu Qunxiazhuan 1.07 V2.5 FIX 234 editor core (UMD) */
+/* src/editor-core.js — Jinshu Qunxiazhuan 1.07 V2.5 FIX 238 editor core (UMD) */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(

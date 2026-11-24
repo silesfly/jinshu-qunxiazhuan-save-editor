@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""jinshu_editor.py -- 금서군협전 (金书群侠传 1.07 V2.5 FIX 234 + Korean patch) save editor.
+"""jinshu_editor.py -- 금서군협전 (金书群侠传 1.07 V2.5 FIX 238 + Korean patch) save editor.
 
 Pure Python 3 standard library only. No network access, no external packages.
 
